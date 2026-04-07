@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+build
+coverage
+*.log
+.env*
+!.env.example
+prisma/migrations
+lib/generated

@@ -1,0 +1,331 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ActivityType {
+  RUN
+  RIDE
+  SWIM
+  HIKE
+  WALK
+  ALPINE_SKI
+  BACKCOUNTRY_SKI
+  CANOEING
+  CROSSFIT
+  E_BIKE_RIDE
+  ELLIPTICAL
+  GOLF
+  HANDCYCLE
+  ICE_SKATE
+  INLINE_SKATE
+  KAYAKING
+  KITESURF
+  NORDIC_SKI
+  ROCK_CLIMBING
+  ROLLER_SKI
+  ROWING
+  SAIL
+  SKATEBOARD
+  SNOWBOARD
+  SNOWSHOE
+  SOCCER
+  STAIRSTEPPER
+  STAND_UP_PADDLING
+  SURFING
+  VELOMOBILE
+  VIRTUAL_RIDE
+  VIRTUAL_RUN
+  WEIGHT_TRAINING
+  WHEELCHAIR
+  WINDSURF
+  WORKOUT
+  YOGA
+}
+
+model Athlete {
+  id           String   @id @default(dbgenerated("gen_random_uuid()"))
+  stravaId     BigInt   @unique
+  email        String   @unique
+  firstname    String
+  lastname     String
+  profileImage String?
+  city         String?
+  country      String?
+  sex          String?  // M, F, or null
+  weight       Float?   // kg
+  lastSyncAt   DateTime?
+  syncStatus   String   @default("never") // never | pending | running | completed | failed
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  activities      Activity[]
+  trainingPrograms TrainingProgram[]
+  sessions        Session[]
+  goals           Goal[]
+  stravaConnection StravaConnection?
+  syncLogs        SyncLog[]
+  fitnessMetrics    FitnessMetric[]
+  personalRecords   PersonalRecord[]
+  metricPRs         MetricPR[]
+  prNotifications   PRNotification[]
+
+  @@index([stravaId])
+  @@index([email])
+  @@index([syncStatus])
+}
+
+model Activity {
+  id                String       @id @default(dbgenerated("gen_random_uuid()"))
+  stravaActivityId  BigInt       @unique
+  athleteId         String
+  type              ActivityType
+  name              String
+  distance          Float? // metros
+  movingTime        Int? // segundos
+  elapsedTime       Int? // segundos
+  totalElevationGain Float? // metros
+  startDate         DateTime
+  averageSpeed      Float?
+  maxSpeed          Float?
+  averageHeartrate  Float?
+  maxHeartrate      Float?
+  averagePower      Float?
+  maxPower          Float?
+  tss               Float?
+  rawJson           Json?        // ← Campo clave: almacena el JSON completo de Strava
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  personalRecords PersonalRecord[]
+  metricPRs       MetricPR[]
+
+  @@index([athleteId])
+  @@index([startDate])
+  @@index([type])
+}
+
+model TrainingProgram {
+  id          String   @id @default(cuid())
+  athleteId   String
+  name        String
+  description String?
+  category    String // strength, cardio, flexibility, etc.
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  athlete  Athlete   @relation(fields: [athleteId], references: [id])
+  sessions Session[]
+
+  @@index([athleteId])
+  @@index([category])
+}
+
+model Session {
+  id                String   @id @default(cuid())
+  athleteId         String
+  trainingProgramId String?
+  name              String
+  description       String?
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  status            String   @default("pending") // pending, completed, skipped
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  athlete         Athlete          @relation(fields: [athleteId], references: [id])
+  trainingProgram TrainingProgram? @relation(fields: [trainingProgramId], references: [id])
+
+  @@index([athleteId])
+  @@index([trainingProgramId])
+  @@index([scheduledDate])
+}
+
+model Goal {
+  id           String    @id @default(cuid())
+  athleteId    String
+  title        String
+  description  String?
+  targetValue  Float?
+  currentValue Float?
+  unit         String? // km, kg, minutes, etc.
+  deadline     DateTime?
+  isAchieved   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id])
+
+  @@index([athleteId])
+  @@index([isAchieved])
+}
+
+/**
+ * Stores encrypted Strava OAuth tokens for athletes
+ * Tokens are encrypted with AES-256-GCM before storage
+ */
+model StravaConnection {
+  id                    String   @id @default(cuid())
+  athleteId             String   @unique
+  encryptedAccessToken  Bytes
+  encryptedRefreshToken Bytes
+  expiresAt             DateTime
+  scope                 String   @default("read,activity:read")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([expiresAt])
+}
+
+/**
+ * Logs for sync operations (profile, activities, etc.)
+ */
+model SyncLog {
+  id               String    @id @default(cuid())
+  athleteId        String
+  type             String    // profile | activities
+  status           String    // pending | running | completed | failed
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  recordsProcessed Int       @default(0)
+  totalRecords     Int       @default(0)
+  currentPage      Int       @default(0)
+  errors           String?
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+/**
+ * Fitness Metrics (CTL, ATL, TSB) calculated daily
+ */
+model FitnessMetric {
+  id        String   @id @default(cuid())
+  athleteId String
+  date      DateTime @db.Date
+  ctl       Float // Chronic Training Load (carga crónica)
+  atl       Float // Acute Training Load (carga aguda)
+  tsb       Float // Training Stress Balance (balance)
+  tss       Float // Training Stress Score del día
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, date])
+  @@index([athleteId])
+  @@index([date])
+}
+
+/**
+ * Standard distances enum for personal records
+ */
+enum StandardDistanceLabel {
+  FIVE_K
+  TEN_K
+  FIFTEEN_K
+  HALF_MARATHON
+  MARATHON
+}
+
+/**
+ * Personal Records (PRs) for standard distances
+ */
+model PersonalRecord {
+  id                   String              @id @default(cuid())
+  athleteId            String
+  distanceLabel        StandardDistanceLabel
+  distanceMeters       Float
+  timeSeconds          Int
+  pacePerKm            Float
+  activityId           String
+  achievedAt           DateTime
+  previousRecordId     String?
+  improvementSeconds   Int?
+  isCurrentRecord      Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  athlete              Athlete             @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  activity             Activity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  previousRecord       PersonalRecord?     @relation("RecordHistory", fields: [previousRecordId], references: [id])
+  nextRecords          PersonalRecord[]    @relation("RecordHistory")
+
+  @@index([athleteId, distanceLabel])
+  @@index([athleteId, isCurrentRecord])
+  @@index([activityId])
+}
+
+/**
+ * Metric types for metric-based PRs
+ */
+enum MetricType {
+  DISTANCE
+  PACE
+  DURATION
+  ELEVATION_GAIN
+}
+
+/**
+ * Metric-based Personal Records (PRs)
+ * Tracks PRs for any metric (distance, pace, duration, elevation) across all activities
+ */
+model MetricPR {
+  id                  String     @id @default(cuid())
+  athleteId           String
+  activityId          String
+  activityType        ActivityType
+  metricType          MetricType
+  metricValue         Float      // stored in base units (meters, seconds, m/s)
+  recordDate          DateTime
+  previousRecordId    String?
+  isCurrent           Boolean    @default(true)
+  improvementPercent  Float?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  athlete             Athlete    @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  activity            Activity   @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  previousRecord      MetricPR?  @relation("MetricPRHistory", fields: [previousRecordId], references: [id])
+  nextRecords         MetricPR[] @relation("MetricPRHistory")
+
+  @@unique([athleteId, activityType, metricType, recordDate])
+  @@index([athleteId, activityType, metricType])
+  @@index([athleteId, isCurrent])
+  @@index([activityId])
+}
+
+/**
+ * PR Notifications for real-time celebration toasts
+ */
+model PRNotification {
+  id         String   @id @default(cuid())
+  athleteId  String
+  recordId   String
+  metricType MetricType
+  seen       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  athlete    Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([seen])
+  @@index([createdAt])
+}
