@@ -104,6 +104,12 @@ export async function syncActivitiesWithProgress(
                 ...(mappedActivity.maxHeartrate !== undefined && {
                   maxHeartrate: mappedActivity.maxHeartrate,
                 }),
+                ...((mappedActivity as any).averagePower !== undefined && {
+                  averagePower: (mappedActivity as any).averagePower,
+                }),
+                ...((mappedActivity as any).maxPower !== undefined && {
+                  maxPower: (mappedActivity as any).maxPower,
+                }),
               },
             });
 

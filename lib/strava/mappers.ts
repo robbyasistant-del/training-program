@@ -112,6 +112,19 @@ export function mapStravaActivity(activity: StravaActivity) {
     mapped.maxHeartrate = null;
   }
 
+  // Power data (watts)
+  if ((activity as any).average_watts !== undefined) {
+    (mapped as any).averagePower = (activity as any).average_watts;
+  } else {
+    (mapped as any).averagePower = null;
+  }
+
+  if ((activity as any).max_watts !== undefined) {
+    (mapped as any).maxPower = (activity as any).max_watts;
+  } else {
+    (mapped as any).maxPower = null;
+  }
+
   return mapped;
 }
 
