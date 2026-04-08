@@ -261,7 +261,7 @@ async function calculateRecentBests(athleteId: string, weight: number, periodDay
 
       const totalDistance = activities.reduce((sum, a) => sum + (a.distance || 0), 0);
       const totalTime = activities.reduce((sum, a) => sum + (a.movingTime || 0), 0);
-      const totalElevation = activities.reduce((sum, a) => sum + (a.elevationGain || 0), 0);
+      const totalElevation = activities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
       
       const activitiesWithPower = activities.filter(a => a.averagePower && a.averagePower > 0);
       const avgPower = activitiesWithPower.length > 0

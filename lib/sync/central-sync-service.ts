@@ -12,7 +12,6 @@ import {
   getActivityStreams 
 } from '@/lib/strava/api-service';
 import { mapStravaActivity } from '@/lib/strava/mappers';
-import { processBatchForPRs, processBatchForMetricPRs } from '@/lib/personalRecords';
 
 export interface SyncStage {
   id: string;
@@ -413,8 +412,7 @@ async function syncAthleteRecords(
 
   onProgress(50);
 
-  // Calcular PRs de potencia
-  const activitiesWithPower = activities.filter(a => a.averagePower && a.averagePower > 0);
+  // Calcular PRs de potencia y distancia con STREAMS reales de Strava
   const powerDurations = [
     { dur: 5, field: 'power5s' },
     { dur: 15, field: 'power15s' },
@@ -433,21 +431,44 @@ async function syncAthleteRecords(
     { dur: 7200, field: 'power2h' },
   ];
 
-  for (const { dur, field } of powerDurations) {
-    const matching = activitiesWithPower.filter(a => {
-      if (!a.movingTime) return false;
-      const tolerance = dur * 0.15;
-      return a.movingTime >= dur - tolerance && a.movingTime <= dur + tolerance;
-    });
+  for (const { field } of powerDurations) prData[field] = null;
 
-    if (matching.length > 0) {
-      const best = matching.reduce((max, a) => 
-        (a.averagePower || 0) > (max.averagePower || 0) ? a : max
+  const cyclingActivities = activities.filter(a => a.stravaActivityId);
+  let processed = 0;
+
+  for (const activity of cyclingActivities) {
+    try {
+      const streams = await getActivityStreams(
+        athleteId,
+        activity.stravaActivityId,
+        ['time', 'distance', 'watts']
       );
-      prData[field] = Math.round(best.averagePower || 0);
-    } else {
-      prData[field] = null;
+
+      if (streams?.distance?.data && streams?.time?.data) {
+        const bestDistanceTimes = computeBestDistanceTimes(streams.time.data, streams.distance.data, distances.map(d => d.dist));
+        for (const { dist, field } of distances) {
+          const candidate = bestDistanceTimes[dist];
+          if (candidate != null && (prData[field] == null || candidate < (prData[field] as number))) {
+            prData[field] = candidate;
+          }
+        }
+      }
+
+      if (streams?.watts?.data && streams?.time?.data) {
+        const bestPowerByDuration = computeBestPowerDurations(streams.time.data, streams.watts.data, powerDurations.map(d => d.dur));
+        for (const { dur, field } of powerDurations) {
+          const candidate = bestPowerByDuration[dur];
+          if (candidate != null && (prData[field] == null || candidate > (prData[field] as number))) {
+            prData[field] = Math.round(candidate);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error processing streams for activity ${activity.id}:`, error);
     }
+
+    processed++;
+    onProgress(Math.min(50 + Math.round((processed / cyclingActivities.length) * 30), 80));
   }
 
   onProgress(80);
@@ -543,6 +564,51 @@ async function syncAthleteRecords(
   });
 
   onProgress(100);
+}
+
+function computeBestDistanceTimes(times: number[], distances: number[], targets: number[]): Record<number, number | null> {
+  const result: Record<number, number | null> = {};
+  for (const target of targets) result[target] = null;
+
+  for (const target of targets) {
+    let start = 0;
+    for (let end = 0; end < distances.length; end++) {
+      while (start < end && (distances[end] - distances[start]) >= target) {
+        const duration = times[end] - times[start];
+        if (duration > 0 && (result[target] == null || duration < (result[target] as number))) {
+          result[target] = duration;
+        }
+        start++;
+      }
+    }
+  }
+
+  return result;
+}
+
+function computeBestPowerDurations(times: number[], watts: number[], targets: number[]): Record<number, number | null> {
+  const result: Record<number, number | null> = {};
+  for (const target of targets) result[target] = null;
+
+  const prefix: number[] = [0];
+  for (let i = 0; i < watts.length; i++) prefix.push(prefix[i] + (watts[i] || 0));
+
+  for (const target of targets) {
+    let start = 0;
+    for (let end = 0; end < times.length; end++) {
+      while (start < end && (times[end] - times[start]) >= target) {
+        const samples = end - start + 1;
+        const total = prefix[end + 1] - prefix[start];
+        const avg = samples > 0 ? total / samples : 0;
+        if (avg > 0 && (result[target] == null || avg > (result[target] as number))) {
+          result[target] = avg;
+        }
+        start++;
+      }
+    }
+  }
+
+  return result;
 }
 
 function sleep(ms: number): Promise<void> {

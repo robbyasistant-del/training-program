@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SyncManager } from '@/components/sync/SyncManager';
+import { StravaConnectionButton } from '@/components/strava';
 
 // Tipos
 interface DistancePR {
@@ -46,12 +47,24 @@ interface FTPData {
   date: string | null;
 }
 
+interface RecentBest {
+  period: string;
+  days: number;
+  totalDistance: number;
+  totalTime: number;
+  totalElevation: number;
+  avgPower: number | null;
+  maxPower: number | null;
+  activities: number;
+}
+
 interface RecordsData {
   distancePRs: DistancePR[];
   powerPRs: PowerPR[];
   powerCurve: PowerCurve;
   ftp: FTPData;
   weight: number;
+  recentBests: RecentBest[];
 }
 
 const RECENT_PERIODS = [
@@ -147,8 +160,9 @@ export default function RecordsPage() {
     return { color: 'text-zinc-400', bg: 'bg-zinc-800', border: 'border-zinc-700', label: '' };
   };
 
-  const pr40km = data?.distancePRs.find(p => p.distance === 40000);
+  const pr20km = data?.distancePRs.find(p => p.distance === 20000);
   const pr20min = data?.powerPRs.find(p => p.duration === 1200);
+  const currentPeriod = data?.recentBests?.find((p) => p.days === selectedPeriod);
 
   if (!athleteId || isLoading) {
     return (
@@ -171,6 +185,7 @@ export default function RecordsPage() {
             <p className="mt-1 text-zinc-400">Tus mejores marcas y métricas de rendimiento</p>
           </div>
         </div>
+        <StravaConnectionButton redirectUrl="/dashboard/records" />
       </div>
 
       {/* SyncManager */}
@@ -216,7 +231,7 @@ export default function RecordsPage() {
           </CardContent>
         </Card>
 
-        {/* Mejor 40K (CRI olímpico) */}
+        {/* Mejor 20K */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -224,9 +239,9 @@ export default function RecordsPage() {
                 <Trophy className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500">Mejor 40K (CRI)</p>
-                <p className="text-2xl font-bold text-white">{formatTime(pr40km?.bestTime || null)}</p>
-                <p className="text-sm text-blue-400">{formatSpeed(pr40km?.bestSpeed || null)}</p>
+                <p className="text-sm text-zinc-500">Mejor 20K</p>
+                <p className="text-2xl font-bold text-white">{formatTime(pr20km?.bestTime || null)}</p>
+                <p className="text-sm text-blue-400">{formatSpeed(pr20km?.bestSpeed || null)}</p>
               </div>
             </div>
           </CardContent>
@@ -256,9 +271,9 @@ export default function RecordsPage() {
                 <Bike className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500">Total Ciclismo</p>
-                <p className="text-2xl font-bold text-white">--</p>
-                <p className="text-sm text-purple-400">-- km</p>
+                <p className="text-sm text-zinc-500">Total {selectedPeriod} días</p>
+                <p className="text-2xl font-bold text-white">{currentPeriod?.activities ?? '--'} act</p>
+                <p className="text-sm text-purple-400">{currentPeriod ? `${(currentPeriod.totalDistance / 1000).toFixed(0)} km` : '-- km'}</p>
               </div>
             </div>
           </CardContent>
