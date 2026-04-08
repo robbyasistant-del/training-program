@@ -371,43 +371,75 @@ export default function RecordsPage() {
 
 // Componente de Curva de Potencia
 function PowerCurveChart({ data, weight }: { data: PowerCurve; weight: number }) {
-  const validPowers = data.powers.filter((p): p is number => p !== null);
-  const maxPower = validPowers.length > 0 ? Math.max(...validPowers) : 0;
+  const points = data.durations
+    .map((duration, i) => ({ duration, power: data.powers[i], wkg: data.wkgs[i] }))
+    .filter((p): p is { duration: number; power: number; wkg: number | null } => p.power !== null);
+
+  if (points.length === 0) return null;
+
+  const width = 900;
+  const height = 260;
+  const padding = 36;
+  const maxPower = Math.max(...points.map((p) => p.power));
+  const minPower = Math.min(...points.map((p) => p.power));
+  const powerRange = Math.max(maxPower - minPower, 1);
+
+  const xFor = (index: number) => padding + (index * (width - padding * 2)) / Math.max(points.length - 1, 1);
+  const yFor = (power: number) => height - padding - ((power - minPower) / powerRange) * (height - padding * 2);
+
+  const polyline = points
+    .map((point, index) => `${xFor(index)},${yFor(point.power)}`)
+    .join(' ');
 
   return (
-    <div className="space-y-4">
-      <div className="h-64 relative">
-        <div className="absolute inset-0 flex items-end justify-between px-2">
-          {data.durations.map((duration, i) => {
-            const power = data.powers[i];
-            if (!power) return null;
-            const height = maxPower > 0 ? (power / maxPower) * 100 : 0;
-            
+    <div className="space-y-5">
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[820px] w-full">
+          {[0, 1, 2, 3].map((step) => {
+            const y = padding + (step * (height - padding * 2)) / 3;
+            const label = Math.round(maxPower - (step * powerRange) / 3);
             return (
-              <div
-                key={duration}
-                className="flex flex-col items-center"
-                style={{ width: `${100 / data.durations.length}%` }}
-              >
-                <div
-                  className="w-full mx-0.5 bg-orange-500/80 rounded-t-sm relative group cursor-pointer hover:bg-orange-400 transition-colors"
-                  style={{ height: `${Math.max(height, 5)}%` }}
-                >
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                    {Math.round(power)} W ({(power / weight).toFixed(2)} W/kg)
-                  </div>
-                </div>
-                <span className="text-xs text-zinc-500 mt-1">
-                  {duration < 60 ? `${duration}s` : duration < 3600 ? `${Math.floor(duration / 60)}m` : `${Math.floor(duration / 3600)}h`}
-                </span>
-              </div>
+              <g key={step}>
+                <line x1={padding} x2={width - padding} y1={y} y2={y} stroke="#27272a" strokeDasharray="4 4" />
+                <text x={8} y={y + 4} fill="#71717a" fontSize="12">{label} W</text>
+              </g>
             );
           })}
-        </div>
+
+          <polyline fill="none" stroke="#f97316" strokeWidth="4" points={polyline} strokeLinejoin="round" strokeLinecap="round" />
+
+          {points.map((point, index) => {
+            const x = xFor(index);
+            const y = yFor(point.power);
+            return (
+              <g key={point.duration}>
+                <circle cx={x} cy={y} r="5" fill="#fb923c" />
+                <text x={x} y={height - 10} textAnchor="middle" fill="#a1a1aa" fontSize="11">
+                  {point.duration < 60 ? `${point.duration}s` : point.duration < 3600 ? `${Math.floor(point.duration / 60)}m` : `${Math.floor(point.duration / 3600)}h`}
+                </text>
+                <text x={x} y={y - 12} textAnchor="middle" fill="#ffffff" fontSize="11">
+                  {Math.round(point.power)}W
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        {points.map((point) => (
+          <div key={point.duration} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+            <div className="text-zinc-500">
+              {point.duration < 60 ? `${point.duration}s` : point.duration < 3600 ? `${Math.floor(point.duration / 60)} min` : `${Math.floor(point.duration / 3600)} h`}
+            </div>
+            <div className="text-white font-semibold">{Math.round(point.power)} W</div>
+            <div className="text-orange-400 text-xs">{point.wkg ? `${point.wkg.toFixed(2)} W/kg` : '--'}</div>
+          </div>
+        ))}
       </div>
 
       <div className="flex justify-between text-sm text-zinc-500">
-        <span>Potencia máxima: <strong className="text-orange-400">{Math.round(maxPower)} W</strong></span>
+        <span>Potencia pico: <strong className="text-orange-400">{Math.round(maxPower)} W</strong></span>
         <span>Peso: {weight} kg</span>
       </div>
     </div>
