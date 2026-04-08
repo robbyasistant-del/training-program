@@ -40,6 +40,7 @@ export default function PerformancePage() {
     atl: number;
     tsb: number;
   } | null>(null);
+  const [lastActivityDate, setLastActivityDate] = useState<string | null>(null);
   const [athleteId, setAthleteId] = useState<string | null>(null);
 
   // Get athleteId from cookie
@@ -63,13 +64,17 @@ export default function PerformancePage() {
     const fetchMetrics = async () => {
       setIsLoading(true);
       try {
+        // Siempre traemos datos hasta hoy (incluso si no hay actividad)
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        
         const period = PERIOD_OPTIONS[selectedPeriod];
         const fromDate = period.days
-          ? new Date(Date.now() - period.days * 24 * 60 * 60 * 1000)
+          ? new Date(today.getTime() - period.days * 24 * 60 * 60 * 1000)
           : new Date('2000-01-01');
 
         const response = await fetch(
-          `/api/athletes/${athleteId}/fitness-metrics?from=${fromDate.toISOString()}`
+          `/api/athletes/${athleteId}/fitness-metrics?from=${fromDate.toISOString()}&to=${today.toISOString()}`
         );
 
         if (!response.ok) {
@@ -81,15 +86,50 @@ export default function PerformancePage() {
         }
 
         const result = await response.json();
-        setData(result.metrics || []);
-
-        if (result.metrics?.length > 0) {
-          const last = result.metrics[result.metrics.length - 1];
-          setCurrentMetrics({
-            ctl: last.ctl,
-            atl: last.atl,
-            tsb: last.tsb,
-          });
+        const metrics = result.metrics || [];
+        
+        // Encontrar la última fecha con datos reales
+        if (metrics.length > 0) {
+          const lastMetric = metrics[metrics.length - 1];
+          setLastActivityDate(lastMetric.date);
+          
+          // Si la última métrica no es de hoy, interpolamos hasta hoy
+          const lastDate = new Date(lastMetric.date);
+          const todayStr = new Date().toISOString().split('T')[0];
+          
+          if (lastDate.toISOString().split('T')[0] !== todayStr) {
+            // Añadir puntos interpolados hasta hoy manteniendo los últimos valores
+            const extendedMetrics = [...metrics];
+            const lastCtl = lastMetric.ctl;
+            const lastAtl = lastMetric.atl;
+            const lastTsb = lastMetric.tsb;
+            
+            // Añadir punto para hoy con los últimos valores conocidos
+            extendedMetrics.push({
+              date: todayStr,
+              ctl: lastCtl,
+              atl: lastAtl,
+              tsb: lastTsb,
+              tss: 0
+            });
+            
+            setData(extendedMetrics);
+            setCurrentMetrics({
+              ctl: lastCtl,
+              atl: lastAtl,
+              tsb: lastTsb,
+            });
+          } else {
+            setData(metrics);
+            setCurrentMetrics({
+              ctl: lastMetric.ctl,
+              atl: lastMetric.atl,
+              tsb: lastMetric.tsb,
+            });
+          }
+        } else {
+          setData([]);
+          setCurrentMetrics(null);
         }
       } catch (error) {
         console.error('Error fetching fitness metrics:', error);
@@ -103,13 +143,28 @@ export default function PerformancePage() {
 
   // Interpretar estado de forma
   const getFormState = (tsb: number) => {
-    if (tsb > 15) return { label: 'Fresco', color: 'text-green-400', bg: 'bg-green-400/10' };
-    if (tsb > -10) return { label: 'Neutro', color: 'text-blue-400', bg: 'bg-blue-400/10' };
-    if (tsb > -25) return { label: 'Fatigado', color: 'text-yellow-400', bg: 'bg-yellow-400/10' };
-    return { label: 'Sobrecarga', color: 'text-red-400', bg: 'bg-red-400/10' };
+    if (tsb > 15) return { label: 'Fresco', color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-400/30' };
+    if (tsb > -10) return { label: 'Neutro', color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/30' };
+    if (tsb > -25) return { label: 'Fatigado', color: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-400/30' };
+    return { label: 'Sobrecarga', color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-400/30' };
   };
 
   const formState = currentMetrics ? getFormState(currentMetrics.tsb) : null;
+
+  // Formatear fecha
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const today = new Date().toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
 
   if (!athleteId) {
     return (
@@ -122,10 +177,23 @@ export default function PerformancePage() {
   return (
     <div className="p-4 md:p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Rendimiento</h1>
-        <p className="mt-2 text-zinc-400">
-          Análisis de tu carga de entrenamiento y curvas de fitness
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Rendimiento</h1>
+            <p className="mt-2 text-zinc-400">
+              Análisis de tu carga de entrenamiento y curvas de fitness
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-zinc-500">Hoy</p>
+            <p className="text-lg font-semibold text-white">{today}</p>
+            {lastActivityDate && (
+              <p className="text-xs text-zinc-600">
+                Última actividad: {formatDate(lastActivityDate)}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Selector de período */}
@@ -173,7 +241,7 @@ export default function PerformancePage() {
           </div>
 
           {formState && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+            <div className={`rounded-xl border ${formState.border} ${formState.bg} p-4`}>
               <p className={`text-sm font-medium ${formState.color}`}>Estado</p>
               <p className="mt-1 text-2xl font-bold text-white">{formState.label}</p>
               <p className="mt-1 text-xs text-zinc-500">Basado en TSB</p>
