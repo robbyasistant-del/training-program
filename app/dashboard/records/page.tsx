@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Trophy, 
@@ -9,27 +9,28 @@ import {
   TrendingUp, 
   Calendar,
   Activity,
-  Target,
-  Flame
+  Flame,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SyncProgressModal } from '@/components/strava/SyncProgressModal';
 
 // Tipos
 interface DistancePR {
   distance: string;
   label: string;
-  bestTime: number | null; // segundos
-  bestPace: number | null; // seg/km
+  bestTime: number | null;
+  bestPace: number | null;
   date: string | null;
   activityId: string | null;
 }
 
 interface PowerPR {
-  duration: number; // segundos
+  duration: number;
   label: string;
   power: number | null;
-  wkg: number | null; // vatios/kg
+  wkg: number | null;
   date: string | null;
 }
 
@@ -63,9 +64,10 @@ interface RecordsData {
   powerCurve: PowerCurve;
   ftp: FTPData;
   recentBests: RecentBest[];
+  lastSyncAt: string | null;
+  needsSync: boolean;
 }
 
-// Distancias estándar
 const DISTANCE_PRS = [
   { distance: 1000, label: '1 km' },
   { distance: 5000, label: '5 km' },
@@ -75,7 +77,6 @@ const DISTANCE_PRS = [
   { distance: 42195, label: 'Maratón' },
 ];
 
-// Durations estándar para power PRs
 const POWER_PR_DURATIONS = [
   { duration: 5, label: '5 seg' },
   { duration: 30, label: '30 seg' },
@@ -85,7 +86,6 @@ const POWER_PR_DURATIONS = [
   { duration: 3600, label: '1 hora' },
 ];
 
-// Períodos para análisis
 const RECENT_PERIODS = [
   { label: '30 días', days: 30 },
   { label: '90 días', days: 90 },
@@ -98,10 +98,9 @@ export default function RecordsPage() {
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [data, setData] = useState<RecordsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [weight, setWeight] = useState<number>(70); // kg, idealmente vendría del perfil
   const [selectedPeriod, setSelectedPeriod] = useState(30);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
-  // Get athleteId from cookie
   useEffect(() => {
     const cookie = document.cookie.split('; ').find((row) => row.startsWith('athlete_id='));
     if (cookie) {
@@ -116,37 +115,32 @@ export default function RecordsPage() {
     }
   }, [router]);
 
-  // Fetch records data
-  useEffect(() => {
+  const fetchRecords = async () => {
     if (!athleteId) return;
-
-    const fetchRecords = async () => {
-      setIsLoading(true);
-      try {
-        // Intentar obtener datos de la API
-        const response = await fetch(`/api/athletes/${athleteId}/records?period=${selectedPeriod}`);
-        
-        if (response.ok) {
-          const result = await response.json();
-          setData(result);
-          if (result.weight) setWeight(result.weight);
-        } else {
-          // Si no hay API, usar datos simulados para demostración
-          setData(getMockData(weight));
-        }
-      } catch (error) {
-        console.error('Error fetching records:', error);
-        // Datos simulados para demostración
-        setData(getMockData(weight));
-      } finally {
-        setIsLoading(false);
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/athletes/${athleteId}/records?period=${selectedPeriod}`);
+      if (response.ok) {
+        const result = await response.json();
+        setData(result);
+      } else {
+        console.error('Error fetching records');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching records:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchRecords();
-  }, [athleteId, selectedPeriod, weight]);
+  }, [athleteId, selectedPeriod]);
 
-  // Formatear tiempo (segundos → HH:MM:SS o MM:SS)
+  const handleSyncComplete = () => {
+    fetchRecords();
+  };
+
   const formatTime = (seconds: number | null) => {
     if (seconds === null) return '--:--';
     const h = Math.floor(seconds / 3600);
@@ -158,7 +152,6 @@ export default function RecordsPage() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Formatear ritmo (seg/km → MM:SS/km)
   const formatPace = (pace: number | null) => {
     if (pace === null) return '--:--';
     const m = Math.floor(pace / 60);
@@ -166,7 +159,6 @@ export default function RecordsPage() {
     return `${m}:${s.toString().padStart(2, '0')}/km`;
   };
 
-  // Calcular color según fecha del PR
   const getPRFreshness = (date: string | null) => {
     if (!date) return { color: 'text-zinc-500', bg: 'bg-zinc-800', border: 'border-zinc-700' };
     const prDate = new Date(date);
@@ -187,29 +179,52 @@ export default function RecordsPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-8">
-      {/* Header */}
+      {/* Header con alerta de sincronización */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Récords & Análisis</h1>
-          <p className="mt-1 text-zinc-400">Tus mejores marcas y métricas de potencia</p>
+          <p className="mt-1 text-zinc-400">Tus mejores marcas y métricas de rendimiento</p>
         </div>
         
-        {/* Selector de período */}
-        <div className="flex gap-2">
-          {RECENT_PERIODS.map((period) => (
-            <button
-              key={period.days}
-              onClick={() => setSelectedPeriod(period.days)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                selectedPeriod === period.days
-                  ? 'bg-[#FC4C02] text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-              }`}
-            >
-              {period.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          {data?.needsSync && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+              <AlertCircle className="h-4 w-4 text-yellow-500" />
+              <span className="text-sm text-yellow-500">Datos desactualizados</span>
+            </div>
+          )}
+          <button
+            onClick={() => setIsSyncModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FC4C02] text-white font-medium hover:bg-[#e04402] transition-colors"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Sincronizar
+          </button>
         </div>
+      </div>
+
+      {/* Info de última sincronización */}
+      {data?.lastSyncAt && (
+        <div className="text-sm text-zinc-500">
+          Última sincronización: {new Date(data.lastSyncAt).toLocaleString('es-ES')}
+        </div>
+      )}
+
+      {/* Selector de período */}
+      <div className="flex gap-2">
+        {RECENT_PERIODS.map((period) => (
+          <button
+            key={period.days}
+            onClick={() => setSelectedPeriod(period.days)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              selectedPeriod === period.days
+                ? 'bg-[#FC4C02] text-white'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+            }`}
+          >
+            {period.label}
+          </button>
+        ))}
       </div>
 
       {/* Métricas Destacadas */}
@@ -374,7 +389,7 @@ export default function RecordsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <PowerCurveChart data={data.powerCurve} weight={weight} />
+            <PowerCurveChart data={data.powerCurve} weight={data?.recentBests[0]?.avgPower ? 70 : 70} />
           </CardContent>
         </Card>
       )}
@@ -415,6 +430,12 @@ export default function RecordsPage() {
           })()}
         </CardContent>
       </Card>
+
+      <SyncProgressModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        onComplete={handleSyncComplete}
+      />
     </div>
   );
 }
@@ -422,7 +443,6 @@ export default function RecordsPage() {
 // Componente de Curva de Potencia
 function PowerCurveChart({ data, weight }: { data: PowerCurve; weight: number }) {
   const maxPower = Math.max(...data.powers.filter(p => p !== null));
-  const maxDuration = Math.max(...data.durations);
 
   return (
     <div className="space-y-4">
@@ -462,43 +482,4 @@ function PowerCurveChart({ data, weight }: { data: PowerCurve; weight: number })
       </div>
     </div>
   );
-}
-
-// Datos simulados para demostración
-function getMockData(weight: number): RecordsData {
-  return {
-    distancePRs: [
-      { distance: 1000, label: '1 km', bestTime: 180, bestPace: 180, date: '2024-03-15', activityId: '1' },
-      { distance: 5000, label: '5 km', bestTime: 1140, bestPace: 228, date: '2024-04-01', activityId: '2' },
-      { distance: 10000, label: '10 km', bestTime: 2400, bestPace: 240, date: '2024-03-20', activityId: '3' },
-      { distance: 15000, label: '15 km', bestTime: 3900, bestPace: 260, date: null, activityId: null },
-      { distance: 21097.5, label: 'Media Maratón', bestTime: 6000, bestPace: 284, date: '2024-02-10', activityId: '4' },
-      { distance: 42195, label: 'Maratón', bestTime: null, bestPace: null, date: null, activityId: null },
-    ],
-    powerPRs: [
-      { duration: 5, label: '5 seg', power: 650, wkg: 650 / weight, date: '2024-04-05' },
-      { duration: 30, label: '30 seg', power: 520, wkg: 520 / weight, date: '2024-04-05' },
-      { duration: 60, label: '1 min', power: 450, wkg: 450 / weight, date: '2024-03-28' },
-      { duration: 300, label: '5 min', power: 380, wkg: 380 / weight, date: '2024-04-02' },
-      { duration: 1200, label: '20 min', power: 320, wkg: 320 / weight, date: '2024-03-15' },
-      { duration: 3600, label: '1 hora', power: 280, wkg: 280 / weight, date: '2024-03-10' },
-    ],
-    powerCurve: {
-      durations: [1, 5, 10, 30, 60, 300, 600, 1200, 1800, 3600],
-      powers: [800, 650, 580, 520, 450, 380, 350, 320, 300, 280],
-      wkgs: [800, 650, 580, 520, 450, 380, 350, 320, 300, 280].map(p => p / weight),
-    },
-    ftp: {
-      estimatedFTP: 280,
-      wkg: 280 / weight,
-      method: 'Monod-Scherrer (Power curve)',
-      date: '2024-04-08',
-    },
-    recentBests: [
-      { period: '30 días', days: 30, totalDistance: 250000, totalTime: 36000, totalElevation: 3500, avgPower: 245, maxPower: 520, activities: 18 },
-      { period: '90 días', days: 90, totalDistance: 750000, totalTime: 108000, totalElevation: 12000, avgPower: 240, maxPower: 650, activities: 52 },
-      { period: '180 días', days: 180, totalDistance: 1500000, totalTime: 216000, totalElevation: 25000, avgPower: 235, maxPower: 680, activities: 98 },
-      { period: '1 año', days: 365, totalDistance: 3200000, totalTime: 460800, totalElevation: 55000, avgPower: 230, maxPower: 720, activities: 210 },
-    ],
-  };
 }

@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   },
   {
     label: 'Récords',
-    href: '/dashboard/personal-records',
+    href: '/dashboard/records',
     icon: <Trophy className="h-5 w-5" />,
     description: 'Tus mejores marcas',
   },
