@@ -7,7 +7,7 @@
 import { prisma } from '@/lib/db';
 import { processBatchForPRs, processBatchForMetricPRs } from '@/lib/personalRecords';
 
-import { fetchActivitiesPage, getAthleteProfile } from './api-service';
+import { fetchActivitiesPage, getAthleteProfile, getAthleteStats } from './api-service';
 import { mapStravaActivity, mapStravaAthlete } from './mappers';
 
 export interface SyncResult {
@@ -190,6 +190,9 @@ export async function syncActivitiesWithProgress(
       metricPRsDetected = metricPRResult.prsFound;
     }
 
+    // Sync athlete records (PRs from Strava stats)
+    await syncAthleteRecords(athleteId);
+
     // Mark as completed
     await prisma.syncLog.update({
       where: { id: syncLog.id },
@@ -293,4 +296,199 @@ export async function checkForDuplicates(athleteId: string): Promise<number> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Sincroniza los récords personales (PRs) del atleta desde Strava
+ * Obtiene los mejores tiempos por distancia y los guarda en la BD
+ */
+export async function syncAthleteRecords(athleteId: string): Promise<void> {
+  try {
+    // Obtener el atleta para tener el stravaId
+    const athlete = await prisma.athlete.findUnique({
+      where: { id: athleteId },
+      select: { stravaId: true, weight: true },
+    });
+
+    if (!athlete || !athlete.stravaId) {
+      throw new Error('Athlete not found or missing Strava ID');
+    }
+
+    // Obtener estadísticas del atleta desde Strava
+    const stats = await getAthleteStats(athleteId, Number(athlete.stravaId));
+    
+    if (!stats) {
+      console.log('[Sync] No stats available from Strava');
+      return;
+    }
+
+    // Extraer PRs de distancia de las estadísticas
+    // Nota: La API de Strava /athletes/{id}/stats no devuelve PRs directamente,
+    // pero podemos inferirlos de las mejores actividades
+    
+    // Calcular totales
+    const totalDistance = (stats.all_ride_totals?.distance || 0) + 
+                         (stats.all_run_totals?.distance || 0) +
+                         (stats.all_swim_totals?.distance || 0);
+    const totalTime = (stats.all_ride_totals?.moving_time || 0) + 
+                     (stats.all_run_totals?.moving_time || 0) +
+                     (stats.all_swim_totals?.moving_time || 0);
+    const totalElevation = (stats.all_ride_totals?.elevation_gain || 0) + 
+                          (stats.all_run_totals?.elevation_gain || 0);
+    const totalActivities = (stats.all_ride_totals?.count || 0) + 
+                           (stats.all_run_totals?.count || 0) +
+                           (stats.all_swim_totals?.count || 0);
+
+    // Buscar PRs de distancia desde las actividades recientes
+    const activities = await prisma.activity.findMany({
+      where: { athleteId },
+      orderBy: { startDate: 'desc' },
+      take: 200,
+    });
+
+    // Calcular PRs de distancia
+    const distances = [
+      { dist: 5000, field: 'pr5k' },
+      { dist: 10000, field: 'pr10k' },
+      { dist: 21097.5, field: 'prHalfMarathon' },
+      { dist: 42195, field: 'prMarathon' },
+    ] as const;
+
+    const prData: Record<string, number | null> = {};
+
+    for (const { dist, field } of distances) {
+      const matching = activities.filter(a => {
+        if (!a.distance) return false;
+        const tolerance = dist * 0.02;
+        return a.distance >= dist - tolerance && a.distance <= dist + tolerance;
+      });
+
+      if (matching.length > 0) {
+        const best = matching.reduce((min, a) => 
+          a.movingTime && a.movingTime < (min.movingTime || Infinity) ? a : min
+        );
+        prData[field] = best.movingTime;
+      } else {
+        prData[field] = null;
+      }
+    }
+
+    // Calcular PRs de potencia si hay datos
+    const activitiesWithPower = activities.filter(a => a.averagePower && a.averagePower > 0);
+    const powerDurations = [
+      { dur: 5, field: 'power5s' },
+      { dur: 15, field: 'power15s' },
+      { dur: 30, field: 'power30s' },
+      { dur: 60, field: 'power1m' },
+      { dur: 120, field: 'power2m' },
+      { dur: 180, field: 'power3m' },
+      { dur: 300, field: 'power5m' },
+      { dur: 480, field: 'power8m' },
+      { dur: 600, field: 'power10m' },
+      { dur: 900, field: 'power15m' },
+      { dur: 1200, field: 'power20m' },
+      { dur: 1800, field: 'power30m' },
+      { dur: 2700, field: 'power45m' },
+      { dur: 3600, field: 'power1h' },
+      { dur: 7200, field: 'power2h' },
+    ] as const;
+
+    for (const { dur, field } of powerDurations) {
+      const matching = activitiesWithPower.filter(a => {
+        if (!a.movingTime) return false;
+        const tolerance = dur * 0.15;
+        return a.movingTime >= dur - tolerance && a.movingTime <= dur + tolerance;
+      });
+
+      if (matching.length > 0) {
+        const best = matching.reduce((max, a) => 
+          (a.averagePower || 0) > (max.averagePower || 0) ? a : max
+        );
+        prData[field] = Math.round(best.averagePower || 0);
+      } else {
+        prData[field] = null;
+      }
+    }
+
+    // Calcular FTP
+    let ftp = null;
+    let ftpMethod = null;
+    
+    const power20m = prData['power20m'];
+    if (power20m) {
+      ftp = Math.round(power20m * 0.95);
+      ftpMethod = '95% de 20 min';
+    } else if (prData['power1h']) {
+      ftp = prData['power1h'];
+      ftpMethod = '1 hora';
+    } else if (prData['power5m']) {
+      ftp = Math.round(prData['power5m'] * 0.85);
+      ftpMethod = 'Est. desde 5 min';
+    }
+
+    // Guardar o actualizar en la BD
+    await prisma.athleteRecord.upsert({
+      where: { athleteId },
+      create: {
+        athleteId,
+        pr5k: prData['pr5k'],
+        pr10k: prData['pr10k'],
+        prHalfMarathon: prData['prHalfMarathon'],
+        prMarathon: prData['prMarathon'],
+        power5s: prData['power5s'],
+        power15s: prData['power15s'],
+        power30s: prData['power30s'],
+        power1m: prData['power1m'],
+        power2m: prData['power2m'],
+        power3m: prData['power3m'],
+        power5m: prData['power5m'],
+        power8m: prData['power8m'],
+        power10m: prData['power10m'],
+        power15m: prData['power15m'],
+        power20m: prData['power20m'],
+        power30m: prData['power30m'],
+        power45m: prData['power45m'],
+        power1h: prData['power1h'],
+        power2h: prData['power2h'],
+        estimatedFTP: ftp,
+        ftpMethod,
+        totalDistance,
+        totalTime,
+        totalElevation,
+        totalActivities,
+      },
+      update: {
+        pr5k: prData['pr5k'],
+        pr10k: prData['pr10k'],
+        prHalfMarathon: prData['prHalfMarathon'],
+        prMarathon: prData['prMarathon'],
+        power5s: prData['power5s'],
+        power15s: prData['power15s'],
+        power30s: prData['power30s'],
+        power1m: prData['power1m'],
+        power2m: prData['power2m'],
+        power3m: prData['power3m'],
+        power5m: prData['power5m'],
+        power8m: prData['power8m'],
+        power10m: prData['power10m'],
+        power15m: prData['power15m'],
+        power20m: prData['power20m'],
+        power30m: prData['power30m'],
+        power45m: prData['power45m'],
+        power1h: prData['power1h'],
+        power2h: prData['power2h'],
+        estimatedFTP: ftp,
+        ftpMethod,
+        totalDistance,
+        totalTime,
+        totalElevation,
+        totalActivities,
+      },
+    });
+
+    console.log('[Sync] Athlete records synced successfully');
+  } catch (error) {
+    console.error('[Sync] Error syncing athlete records:', error);
+    // No lanzamos el error para no interrumpir la sincronización principal
+  }
 }

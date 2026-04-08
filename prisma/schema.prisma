@@ -75,6 +75,7 @@ model Athlete {
   personalRecords   PersonalRecord[]
   metricPRs         MetricPR[]
   prNotifications   PRNotification[]
+  athleteRecord     AthleteRecord?
 
   @@index([stravaId])
   @@index([email])
@@ -328,4 +329,54 @@ model PRNotification {
   @@index([athleteId])
   @@index([seen])
   @@index([createdAt])
+}
+
+/**
+ * Athlete Records - Stores PRs from Strava API (/athletes/{id}/stats)
+ * Includes best times for standard distances and power outputs
+ */
+model AthleteRecord {
+  id                String   @id @default(cuid())
+  athleteId         String   @unique
+  
+  // PRs de distancia desde Strava (en segundos)
+  pr5k              Int?     // 5 km
+  pr10k             Int?     // 10 km
+  prHalfMarathon    Int?     // 21.097 km
+  prMarathon        Int?     // 42.195 km
+  
+  // PRs de potencia desde Strava (en vatios)
+  power5s           Int?
+  power15s          Int?
+  power30s          Int?
+  power1m           Int?
+  power2m           Int?
+  power3m           Int?
+  power5m           Int?
+  power8m           Int?
+  power10m          Int?
+  power15m          Int?
+  power20m          Int?
+  power30m          Int?
+  power45m          Int?
+  power1h           Int?
+  power2h           Int?
+  
+  // FTP calculado
+  estimatedFTP      Int?
+  ftpMethod         String?  // Método usado para calcular el FTP
+  
+  // Estadísticas totales
+  totalDistance     Float?   // metros
+  totalTime         Int?     // segundos
+  totalElevation    Float?   // metros
+  totalActivities   Int?
+  
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  athlete           Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([updatedAt])
 }

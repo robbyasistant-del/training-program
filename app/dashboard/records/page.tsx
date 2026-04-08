@@ -135,31 +135,13 @@ export default function RecordsPage() {
     if (!athleteId) return;
     setIsLoading(true);
     try {
-      // Obtener datos básicos de la BD local
-      const recordsResponse = await fetch(`/api/athletes/${athleteId}/records?period=${selectedPeriod}`);
-      let recordsData = null;
-      if (recordsResponse.ok) {
-        recordsData = await recordsResponse.json();
-        setData(recordsData);
-      }
-      
-      // Obtener PRs de potencia en tiempo real de Strava
-      try {
-        const powerResponse = await fetch(`/api/athletes/${athleteId}/power-prs`);
-        if (powerResponse.ok) {
-          const powerData = await powerResponse.json();
-          // Actualizar solo los datos de potencia
-          if (recordsData && powerData) {
-            setData(prev => ({
-              ...recordsData,
-              powerPRs: powerData.powerPRs || recordsData.powerPRs,
-              ftp: powerData.ftp || recordsData.ftp,
-              powerFromStrava: true,
-            }));
-          }
-        }
-      } catch (powerError) {
-        console.log('Power PRs not available (may need power meter):', powerError);
+      // Obtener todos los datos desde la BD local (sincronizados previamente)
+      const response = await fetch(`/api/athletes/${athleteId}/records?period=${selectedPeriod}`);
+      if (response.ok) {
+        const result = await response.json();
+        setData(result);
+      } else {
+        console.error('Error fetching records');
       }
     } catch (error) {
       console.error('Error fetching records:', error);

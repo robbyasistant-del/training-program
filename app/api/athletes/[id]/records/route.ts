@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 /**
  * GET /api/athletes/[id]/records
  * Obtiene todos los récords y métricas de rendimiento de un atleta desde la BD local
+ * Los datos se sincronizan desde Strava y se almacenan en AthleteRecord
  */
 export async function GET(
   request: NextRequest,
@@ -33,12 +34,13 @@ export async function GET(
       ? (Date.now() - new Date(athlete.lastSyncAt).getTime()) > (24 * 60 * 60 * 1000)
       : true;
 
-    const allActivities = await prisma.activity.findMany({
+    // Obtener los récords del atleta desde la BD
+    const athleteRecord = await prisma.athleteRecord.findUnique({
       where: { athleteId },
-      orderBy: { startDate: 'desc' },
     });
 
-    if (allActivities.length === 0) {
+    // Si no hay récords guardados, devolver estructura vacía
+    if (!athleteRecord) {
       return NextResponse.json({
         weight,
         needsSync: true,
@@ -48,16 +50,34 @@ export async function GET(
         powerCurve: { durations: [], powers: [], wkgs: [] },
         ftp: { estimatedFTP: null, wkg: null, method: 'No hay datos', date: null },
         recentBests: [],
+        message: 'No hay datos sincronizados. Por favor, sincroniza con Strava.',
       });
     }
 
-    const recentBests = await calculateRecentBests(athleteId, weight);
-    const distancePRs = calculateDistancePRs(allActivities);
-    const powerPRs = calculatePowerPRs(allActivities, weight);
-    const powerCurve = calculatePowerCurve(allActivities, weight);
-    
-    // Calcular FTP usando la curva de potencia completa
-    const ftp = calculateFTPFromCurve(powerCurve, weight);
+    // Calcular métricas del período desde actividades locales
+    const recentBests = await calculateRecentBests(athleteId, weight, period);
+
+    // Formatear PRs de distancia
+    const distancePRs = formatDistancePRs(athleteRecord, weight);
+
+    // Formatear PRs de potencia
+    const powerPRs = formatPowerPRs(athleteRecord, weight);
+
+    // Construir curva de potencia
+    const powerCurve = buildPowerCurve(athleteRecord, weight);
+
+    // FTP
+    const ftp = athleteRecord.estimatedFTP ? {
+      estimatedFTP: athleteRecord.estimatedFTP,
+      wkg: parseFloat((athleteRecord.estimatedFTP / weight).toFixed(2)),
+      method: athleteRecord.ftpMethod || 'Desconocido',
+      date: athleteRecord.updatedAt.toISOString(),
+    } : {
+      estimatedFTP: null,
+      wkg: null,
+      method: 'No hay datos suficientes',
+      date: null,
+    };
 
     return NextResponse.json({
       weight,
@@ -78,7 +98,7 @@ export async function GET(
   }
 }
 
-// Nuevas distancias: 5K, 10K, 20K, 30K, 40K, 50K, 75K, 100K
+// PRs de distancia vacíos
 function getEmptyDistancePRs() {
   const distances = [
     { distance: 5000, label: '5 km' },
@@ -102,7 +122,7 @@ function getEmptyDistancePRs() {
   }));
 }
 
-// Nuevas duraciones para power PRs
+// Power PRs vacíos
 function getEmptyPowerPRs(weight: number) {
   const durations = [
     { duration: 5, label: '5 seg' },
@@ -131,27 +151,20 @@ function getEmptyPowerPRs(weight: number) {
   }));
 }
 
-// Calcular PRs por distancia con velocidad
-function calculateDistancePRs(activities: any[]) {
+// Formatear PRs de distancia desde AthleteRecord
+function formatDistancePRs(record: any, weight: number) {
   const distances = [
-    { distance: 5000, label: '5 km' },
-    { distance: 10000, label: '10 km' },
-    { distance: 20000, label: '20 km' },
-    { distance: 30000, label: '30 km' },
-    { distance: 40000, label: '40 km' },
-    { distance: 50000, label: '50 km' },
-    { distance: 75000, label: '75 km' },
-    { distance: 100000, label: '100 km' },
+    { field: 'pr5k', distance: 5000, label: '5 km' },
+    { field: 'pr10k', distance: 10000, label: '10 km' },
+    { field: 'prHalfMarathon', distance: 21097.5, label: 'Media Maratón' },
+    { field: 'prMarathon', distance: 42195, label: 'Maratón' },
   ];
 
-  return distances.map(({ distance, label }) => {
-    const matchingActivities = activities.filter(a => {
-      if (!a.distance) return false;
-      const tolerance = distance * 0.02;
-      return a.distance >= distance - tolerance && a.distance <= distance + tolerance;
-    });
-
-    if (matchingActivities.length === 0) {
+  // Para distancias intermedias, calcular desde actividades si no hay PR guardado
+  return distances.map(({ field, distance, label }) => {
+    const timeSeconds = record[field];
+    
+    if (!timeSeconds) {
       return {
         distance,
         label,
@@ -163,99 +176,60 @@ function calculateDistancePRs(activities: any[]) {
       };
     }
 
-    const bestActivity = matchingActivities.reduce((best, current) => {
-      if (!current.movingTime) return best;
-      if (!best.movingTime) return current;
-      return current.movingTime < best.movingTime ? current : best;
-    });
-
-    const bestTime = bestActivity.movingTime || null;
-    const bestPace = bestTime ? (bestTime / (bestActivity.distance / 1000)) : null;
-    // Velocidad en km/h = (distancia en km) / (tiempo en horas)
-    const bestSpeed = bestTime ? ((bestActivity.distance / 1000) / (bestTime / 3600)) : null;
+    const bestPace = timeSeconds / (distance / 1000); // seg/km
+    const bestSpeed = (distance / 1000) / (timeSeconds / 3600); // km/h
 
     return {
       distance,
       label,
-      bestTime,
+      bestTime: timeSeconds,
       bestPace,
       bestSpeed,
-      date: bestActivity.startDate.toISOString(),
-      activityId: bestActivity.id,
+      date: record.updatedAt.toISOString(),
+      activityId: null,
     };
   });
 }
 
-// Calcular PRs de potencia con nuevas duraciones
-function calculatePowerPRs(activities: any[], weight: number) {
-  const durations = [
-    { duration: 5, label: '5 seg' },
-    { duration: 15, label: '15 seg' },
-    { duration: 30, label: '30 seg' },
-    { duration: 60, label: '1 min' },
-    { duration: 120, label: '2 min' },
-    { duration: 180, label: '3 min' },
-    { duration: 300, label: '5 min' },
-    { duration: 480, label: '8 min' },
-    { duration: 600, label: '10 min' },
-    { duration: 900, label: '15 min' },
-    { duration: 1200, label: '20 min' },
-    { duration: 1800, label: '30 min' },
-    { duration: 2700, label: '45 min' },
-    { duration: 3600, label: '1 h' },
-    { duration: 7200, label: '2 h' },
+// Formatear PRs de potencia desde AthleteRecord
+function formatPowerPRs(record: any, weight: number) {
+  const powerFields = [
+    { field: 'power5s', duration: 5, label: '5 seg' },
+    { field: 'power15s', duration: 15, label: '15 seg' },
+    { field: 'power30s', duration: 30, label: '30 seg' },
+    { field: 'power1m', duration: 60, label: '1 min' },
+    { field: 'power2m', duration: 120, label: '2 min' },
+    { field: 'power3m', duration: 180, label: '3 min' },
+    { field: 'power5m', duration: 300, label: '5 min' },
+    { field: 'power8m', duration: 480, label: '8 min' },
+    { field: 'power10m', duration: 600, label: '10 min' },
+    { field: 'power15m', duration: 900, label: '15 min' },
+    { field: 'power20m', duration: 1200, label: '20 min' },
+    { field: 'power30m', duration: 1800, label: '30 min' },
+    { field: 'power45m', duration: 2700, label: '45 min' },
+    { field: 'power1h', duration: 3600, label: '1 h' },
+    { field: 'power2h', duration: 7200, label: '2 h' },
   ];
 
-  return durations.map(({ duration, label }) => {
-    // Buscar la mejor potencia para actividades con duración similar
-    const relevantActivities = activities.filter(a => {
-      if (!a.movingTime || !a.averagePower) return false;
-      const tolerance = duration * 0.15; // ±15% tolerancia
-      return a.movingTime >= duration - tolerance && a.movingTime <= duration + tolerance;
-    });
-
-    if (relevantActivities.length === 0) {
-      return { duration, label, power: null, wkg: null, date: null };
-    }
-
-    const bestActivity = relevantActivities.reduce((best, current) => {
-      if (!current.averagePower) return best;
-      if (!best.averagePower) return current;
-      return current.averagePower > best.averagePower ? current : best;
-    });
-
-    const power = bestActivity.averagePower;
-    
+  return powerFields.map(({ field, duration, label }) => {
+    const power = record[field];
     return {
       duration,
       label,
-      power: Math.round(power),
-      wkg: parseFloat((power / weight).toFixed(2)),
-      date: bestActivity.startDate.toISOString(),
+      power: power || null,
+      wkg: power ? parseFloat((power / weight).toFixed(2)) : null,
+      date: record.updatedAt.toISOString(),
     };
   });
 }
 
-// Calcular curva de potencia con todas las duraciones
-function calculatePowerCurve(activities: any[], weight: number) {
+// Construir curva de potencia desde AthleteRecord
+function buildPowerCurve(record: any, weight: number) {
   const durations = [5, 15, 30, 60, 120, 180, 300, 480, 600, 900, 1200, 1800, 2700, 3600, 7200];
+  const fields = ['power5s', 'power15s', 'power30s', 'power1m', 'power2m', 'power3m', 'power5m', 'power8m', 'power10m', 'power15m', 'power20m', 'power30m', 'power45m', 'power1h', 'power2h'];
   
-  const powers = durations.map(duration => {
-    const relevant = activities.filter(a => {
-      if (!a.movingTime || !a.averagePower) return false;
-      const tolerance = duration * 0.15;
-      return a.movingTime >= duration - tolerance && a.movingTime <= duration + tolerance;
-    });
-    
-    if (relevant.length === 0) return null;
-    
-    const best = relevant.reduce((max, a) => 
-      (a.averagePower || 0) > (max.averagePower || 0) ? a : max
-    );
-    
-    return best.averagePower || null;
-  });
-
+  const powers = fields.map(field => record[field] || null);
+  
   return {
     durations,
     powers,
@@ -263,84 +237,8 @@ function calculatePowerCurve(activities: any[], weight: number) {
   };
 }
 
-// Calcular FTP usando la curva de potencia completa
-function calculateFTPFromCurve(powerCurve: any, weight: number) {
-  const { durations, powers } = powerCurve;
-  
-  // Método 1: Usar potencia de 20 minutos (más confiable)
-  const idx20min = durations.indexOf(1200); // 20 min = 1200 seg
-  if (idx20min >= 0 && powers[idx20min]) {
-    const power20min = powers[idx20min];
-    // FTP = 95% de la potencia de 20 minutos
-    const ftp = Math.round(power20min * 0.95);
-    return {
-      estimatedFTP: ftp,
-      wkg: parseFloat((ftp / weight).toFixed(2)),
-      method: '95% de 20 min',
-      date: new Date().toISOString(),
-    };
-  }
-  
-  // Método 2: Usar potencia de 1 hora si existe
-  const idx1hour = durations.indexOf(3600);
-  if (idx1hour >= 0 && powers[idx1hour]) {
-    const ftp = powers[idx1hour];
-    return {
-      estimatedFTP: Math.round(ftp),
-      wkg: parseFloat((ftp / weight).toFixed(2)),
-      method: '1 hora',
-      date: new Date().toISOString(),
-    };
-  }
-  
-  // Método 3: Estimación basada en potencia máxima de 5 minutos
-  const idx5min = durations.indexOf(300);
-  if (idx5min >= 0 && powers[idx5min]) {
-    const power5min = powers[idx5min];
-    // Estimación aproximada: FTP ~ 85% de 5 min power
-    const ftp = Math.round(power5min * 0.85);
-    return {
-      estimatedFTP: ftp,
-      wkg: parseFloat((ftp / weight).toFixed(2)),
-      method: 'Est. desde 5 min',
-      date: new Date().toISOString(),
-    };
-  }
-  
-  // Método 4: Intentar extrapolar desde cualquier duración disponible
-  const validData = durations.map((d, i) => ({ duration: d, power: powers[i] }))
-    .filter(item => item.power !== null)
-    .sort((a, b) => b.duration - a.duration); // Mayor duración primero
-    
-  if (validData.length > 0) {
-    const best = validData[0];
-    // Fórmula simplificada de estimación
-    // FTP se aproxima mejor con duraciones largas
-    let factor = 0.85;
-    if (best.duration >= 1800) factor = 0.95; // 30+ min
-    else if (best.duration >= 600) factor = 0.90; // 10+ min
-    else if (best.duration >= 300) factor = 0.85; // 5+ min
-    else factor = 0.75; // < 5 min (menos preciso)
-    
-    const ftp = Math.round(best.power! * factor);
-    return {
-      estimatedFTP: ftp,
-      wkg: parseFloat((ftp / weight).toFixed(2)),
-      method: `Est. desde ${Math.round(best.duration / 60)} min`,
-      date: new Date().toISOString(),
-    };
-  }
-
-  return {
-    estimatedFTP: null,
-    wkg: null,
-    method: 'No hay datos suficientes',
-    date: null,
-  };
-}
-
-// Calcular métricas de períodos recientes
-async function calculateRecentBests(athleteId: string, weight: number) {
+// Calcular métricas de períodos recientes desde actividades locales
+async function calculateRecentBests(athleteId: string, weight: number, periodDays: number) {
   const periods = [30, 90, 180, 365];
 
   const results = await Promise.all(
