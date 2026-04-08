@@ -141,7 +141,45 @@ export async function fetchActivitiesPage(
   };
 }
 
-export type { StravaAthlete, StravaActivity };
+// Interfaces para estadísticas del atleta
+interface AthleteStats {
+  biggest_ride_distance: number;
+  biggest_climb_elevation_gain: number;
+  recent_ride_totals: ActivityTotals;
+  recent_run_totals: ActivityTotals;
+  recent_swim_totals: ActivityTotals;
+  ytd_ride_totals: ActivityTotals;
+  ytd_run_totals: ActivityTotals;
+  ytd_swim_totals: ActivityTotals;
+  all_ride_totals: ActivityTotals;
+  all_run_totals: ActivityTotals;
+  all_swim_totals: ActivityTotals;
+}
+
+interface ActivityTotals {
+  count: number;
+  distance: number;
+  moving_time: number;
+  elapsed_time: number;
+  elevation_gain: number;
+  achievement_count?: number;
+}
+
+export type { StravaAthlete, StravaActivity, AthleteStats };
+
+/**
+ * Obtiene estadísticas del atleta desde Strava
+ * Incluye totales, récords personales y más
+ */
+export async function getAthleteStats(athleteId: string, stravaAthleteId: number): Promise<AthleteStats | null> {
+  try {
+    const response = await fetchFromStrava(`/athletes/${stravaAthleteId}/stats`, athleteId);
+    return (await response.json()) as AthleteStats;
+  } catch (error) {
+    console.error('[Strava API] Error fetching athlete stats:', error);
+    return null;
+  }
+}
 
 /**
  * Obtiene una actividad específica por su ID de Strava
@@ -158,6 +196,25 @@ export async function fetchActivityById(
     return (await response.json()) as StravaActivity;
   } catch (error) {
     console.error('[Strava API] Error fetching activity:', error);
+    return null;
+  }
+}
+
+/**
+ * Obtiene los streams (datos detallados) de una actividad
+ * Incluye series temporales de watts, velocidad, cadencia, etc.
+ */
+export async function getActivityStreams(
+  athleteId: string,
+  activityId: bigint,
+  types: string[] = ['watts', 'velocity_smooth', 'heartrate', 'cadence', 'temp']
+): Promise<Record<string, { data: number[]; series_type: string; original_size: number; resolution: string }> | null> {
+  try {
+    const typesParam = types.join(',');
+    const response = await fetchFromStrava(`/activities/${activityId}/streams?keys=${typesParam}&key_by_type=true`, athleteId);
+    return (await response.json()) as Record<string, { data: number[]; series_type: string; original_size: number; resolution: string }>;
+  } catch (error) {
+    console.error('[Strava API] Error fetching activity streams:', error);
     return null;
   }
 }
