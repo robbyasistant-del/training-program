@@ -30,9 +30,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
 
+    // Convert BigInt to string for JSON serialization
+    const serializedAthlete = {
+      ...updatedAthlete,
+      stravaId: updatedAthlete.stravaId.toString(),
+    };
+
     return NextResponse.json({
       success: true,
-      athlete: updatedAthlete,
+      athlete: serializedAthlete,
     });
   } catch (error) {
     console.error('Sync profile error:', error);
