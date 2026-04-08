@@ -5,17 +5,14 @@ import { useRouter } from 'next/navigation';
 import { 
   Trophy, 
   Zap, 
-  Timer, 
   TrendingUp, 
   Calendar,
   Activity,
   Flame,
-  RefreshCw,
-  AlertCircle,
   Gauge
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { SyncProgressModal } from '@/components/strava/SyncProgressModal';
+import { SyncManager } from '@/components/sync/SyncManager';
 
 // Tipos
 interface DistancePR {
@@ -23,9 +20,8 @@ interface DistancePR {
   label: string;
   bestTime: number | null;
   bestPace: number | null;
-  bestSpeed: number | null; // km/h
+  bestSpeed: number | null;
   date: string | null;
-  activityId: string | null;
 }
 
 interface PowerPR {
@@ -49,58 +45,13 @@ interface FTPData {
   date: string | null;
 }
 
-interface RecentBest {
-  period: string;
-  days: number;
-  totalDistance: number;
-  totalTime: number;
-  totalElevation: number;
-  avgPower: number | null;
-  maxPower: number | null;
-  activities: number;
-}
-
 interface RecordsData {
   distancePRs: DistancePR[];
   powerPRs: PowerPR[];
   powerCurve: PowerCurve;
   ftp: FTPData;
-  recentBests: RecentBest[];
-  lastSyncAt: string | null;
-  needsSync: boolean;
   weight: number;
 }
-
-// Nuevas distancias: 5K, 10K, 20K, 30K, 40K, 50K, 75K, 100K
-const DISTANCE_PRS = [
-  { distance: 5000, label: '5 km' },
-  { distance: 10000, label: '10 km' },
-  { distance: 20000, label: '20 km' },
-  { distance: 30000, label: '30 km' },
-  { distance: 40000, label: '40 km' },
-  { distance: 50000, label: '50 km' },
-  { distance: 75000, label: '75 km' },
-  { distance: 100000, label: '100 km' },
-];
-
-// Nuevas duraciones para power PRs
-const POWER_PR_DURATIONS = [
-  { duration: 5, label: '5 seg' },
-  { duration: 15, label: '15 seg' },
-  { duration: 30, label: '30 seg' },
-  { duration: 60, label: '1 min' },
-  { duration: 120, label: '2 min' },
-  { duration: 180, label: '3 min' },
-  { duration: 300, label: '5 min' },
-  { duration: 480, label: '8 min' },
-  { duration: 600, label: '10 min' },
-  { duration: 900, label: '15 min' },
-  { duration: 1200, label: '20 min' },
-  { duration: 1800, label: '30 min' },
-  { duration: 2700, label: '45 min' },
-  { duration: 3600, label: '1 h' },
-  { duration: 7200, label: '2 h' },
-];
 
 const RECENT_PERIODS = [
   { label: '30 días', days: 30 },
@@ -115,7 +66,6 @@ export default function RecordsPage() {
   const [data, setData] = useState<RecordsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState(30);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   useEffect(() => {
     const cookie = document.cookie.split('; ').find((row) => row.startsWith('athlete_id='));
@@ -135,13 +85,10 @@ export default function RecordsPage() {
     if (!athleteId) return;
     setIsLoading(true);
     try {
-      // Obtener todos los datos desde la BD local (sincronizados previamente)
       const response = await fetch(`/api/athletes/${athleteId}/records?period=${selectedPeriod}`);
       if (response.ok) {
         const result = await response.json();
         setData(result);
-      } else {
-        console.error('Error fetching records');
       }
     } catch (error) {
       console.error('Error fetching records:', error);
@@ -153,10 +100,6 @@ export default function RecordsPage() {
   useEffect(() => {
     fetchRecords();
   }, [athleteId, selectedPeriod]);
-
-  const handleSyncComplete = () => {
-    fetchRecords();
-  };
 
   const formatTime = (seconds: number | null) => {
     if (seconds === null) return '--:--';
@@ -191,7 +134,6 @@ export default function RecordsPage() {
     return { color: 'text-zinc-400', bg: 'bg-zinc-800', border: 'border-zinc-700', label: '' };
   };
 
-  // Encontrar PRs específicos para las métricas destacadas
   const pr10k = data?.distancePRs.find(p => p.distance === 10000);
   const pr5min = data?.powerPRs.find(p => p.duration === 300);
 
@@ -205,37 +147,16 @@ export default function RecordsPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-8">
-      {/* Header */}
+      {/* Header con SyncManager */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Récords & Análisis</h1>
           <p className="mt-1 text-zinc-400">Tus mejores marcas y métricas de rendimiento</p>
         </div>
-        
-        <div className="flex items-center gap-4">
-          {data?.needsSync && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-              <AlertCircle className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm text-yellow-500">Datos desactualizados</span>
-            </div>
-          )}
-          
-          <button
-            onClick={() => setIsSyncModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FC4C02] text-white font-medium hover:bg-[#e04402] transition-colors"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Sincronizar
-          </button>
-        </div>
       </div>
 
-      {/* Info de última sincronización */}
-      {data?.lastSyncAt && (
-        <div className="text-sm text-zinc-500">
-          Última sincronización: {new Date(data.lastSyncAt).toLocaleString('es-ES')}
-        </div>
-      )}
+      {/* SyncManager - Componente transversal de sincronización */}
+      <SyncManager athleteId={athleteId} onSyncComplete={fetchRecords} />
 
       {/* Selector de período */}
       <div className="flex gap-2">
@@ -271,9 +192,7 @@ export default function RecordsPage() {
                 {data?.ftp?.wkg && (
                   <p className="text-sm text-orange-400">{data.ftp.wkg.toFixed(2)} W/kg</p>
                 )}
-                <p className="text-xs text-zinc-600 mt-1">
-                  {data?.ftp?.method || 'Sin datos'}
-                </p>
+                <p className="text-xs text-zinc-600 mt-1">{data?.ftp?.method || 'Sin datos'}</p>
               </div>
             </div>
           </CardContent>
@@ -288,12 +207,8 @@ export default function RecordsPage() {
               </div>
               <div>
                 <p className="text-sm text-zinc-500">Mejor 10K</p>
-                <p className="text-2xl font-bold text-white">
-                  {formatTime(pr10k?.bestTime || null)}
-                </p>
-                <p className="text-sm text-blue-400">
-                  {formatSpeed(pr10k?.bestSpeed || null)}
-                </p>
+                <p className="text-2xl font-bold text-white">{formatTime(pr10k?.bestTime || null)}</p>
+                <p className="text-sm text-blue-400">{formatSpeed(pr10k?.bestSpeed || null)}</p>
               </div>
             </div>
           </CardContent>
@@ -308,12 +223,8 @@ export default function RecordsPage() {
               </div>
               <div>
                 <p className="text-sm text-zinc-500">Potencia Máx (5min)</p>
-                <p className="text-2xl font-bold text-white">
-                  {pr5min?.power || '--'} W
-                </p>
-                <p className="text-sm text-green-400">
-                  {pr5min?.wkg?.toFixed(2) || '--'} W/kg
-                </p>
+                <p className="text-2xl font-bold text-white">{pr5min?.power || '--'} W</p>
+                <p className="text-sm text-green-400">{pr5min?.wkg?.toFixed(2) || '--'} W/kg</p>
               </div>
             </div>
           </CardContent>
@@ -328,12 +239,8 @@ export default function RecordsPage() {
               </div>
               <div>
                 <p className="text-sm text-zinc-500">Total {selectedPeriod} días</p>
-                <p className="text-2xl font-bold text-white">
-                  {data?.recentBests.find(b => b.days === selectedPeriod)?.activities || 0} act
-                </p>
-                <p className="text-sm text-purple-400">
-                  {((data?.recentBests.find(b => b.days === selectedPeriod)?.totalDistance || 0) / 1000).toFixed(0)} km
-                </p>
+                <p className="text-2xl font-bold text-white">-- act</p>
+                <p className="text-sm text-purple-400">-- km</p>
               </div>
             </div>
           </CardContent>
@@ -425,49 +332,6 @@ export default function RecordsPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Resumen por Período */}
-      <Card className="bg-zinc-900 border-zinc-800">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Calendar className="h-5 w-5 text-green-500" />
-            Resumen de Entrenamiento ({selectedPeriod} días)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(() => {
-            const best = data?.recentBests.find(b => b.days === selectedPeriod);
-            if (!best) return <p className="text-zinc-500">No hay datos</p>;
-            
-            return (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <p className="text-sm text-zinc-500">Distancia Total</p>
-                  <p className="text-2xl font-bold text-white">{(best.totalDistance / 1000).toFixed(1)} km</p>
-                </div>
-                <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <p className="text-sm text-zinc-500">Tiempo Total</p>
-                  <p className="text-2xl font-bold text-white">{Math.floor(best.totalTime / 3600)}h</p>
-                </div>
-                <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <p className="text-sm text-zinc-500">Elevación</p>
-                  <p className="text-2xl font-bold text-white">{best.totalElevation.toFixed(0)} m</p>
-                </div>
-                <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <p className="text-sm text-zinc-500">Potencia Media</p>
-                  <p className="text-2xl font-bold text-white">{best.avgPower || '--'} W</p>
-                </div>
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
-
-      <SyncProgressModal
-        isOpen={isSyncModalOpen}
-        onClose={() => setIsSyncModalOpen(false)}
-        onComplete={handleSyncComplete}
-      />
     </div>
   );
 }
