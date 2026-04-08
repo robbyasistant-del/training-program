@@ -35,9 +35,8 @@ export default function PersonalRecordsPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-900/50">
-        <div className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-8 pt-20 lg:pt-8">
+        <div className="mb-8">
           <div className="flex items-center gap-3">
             <Trophy className="h-8 w-8 text-yellow-500" />
             <div>
@@ -46,9 +45,6 @@ export default function PersonalRecordsPage({ searchParams }: PageProps) {
             </div>
           </div>
         </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="current" className="space-y-6">
           <TabsList className="bg-zinc-800 border-zinc-700">
             <TabsTrigger value="current" className="data-[state=active]:bg-zinc-700">

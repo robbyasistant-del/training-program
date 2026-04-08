@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 
 import { ReactQueryProvider } from '@/components/providers/ReactQueryProvider';
+import { DashboardLayout } from '@/components/navigation/DashboardLayout';
 import { cn } from '@/lib/utils';
 
 const inter = Inter({
@@ -26,7 +27,9 @@ export default function RootLayout({
     <html lang="en" className={cn('font-sans', inter.variable)}>
       <body className={cn('min-h-screen bg-background antialiased', inter.className)}>
         <ReactQueryProvider>
-          {children}
+          <DashboardLayout>
+            {children}
+          </DashboardLayout>
         </ReactQueryProvider>
       </body>
     </html>

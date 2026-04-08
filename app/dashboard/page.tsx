@@ -12,7 +12,7 @@ import { WeeklyActivityChart } from '@/components/dashboard/WeeklyActivityChart'
 import { WeekSelector } from '@/components/dashboard/WeekSelector';
 import { ActivitySummaryRing } from '@/components/dashboard/ActivitySummaryRing';
 import { WeeklyVolumeChart } from '@/components/charts';
-import { StravaConnectionButton } from '@/components/strava';
+// Header removed - now in Sidebar navigation
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRecentActivities } from '@/hooks/useRecentActivities';
@@ -151,21 +151,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#FC4C02] to-[#e04402]">
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L8.423 0 2.5 12.343h4.172" />
-              </svg>
-            </div>
-            <h1 className="text-xl font-bold text-white">Training Program</h1>
-          </div>
-          <StravaConnectionButton />
-        </div>
-      </header>
-
       {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* Header con selector de semana */}
