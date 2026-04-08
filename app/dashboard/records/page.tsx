@@ -115,6 +115,7 @@ export default function RecordsPage() {
   const [data, setData] = useState<RecordsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState(30);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   useEffect(() => {
     const cookie = document.cookie.split('; ').find((row) => row.startsWith('athlete_id='));
