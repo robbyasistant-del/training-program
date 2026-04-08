@@ -369,20 +369,27 @@ async function syncAthleteRecords(
 
   const weight = athlete?.weight || 70;
 
-  // Obtener actividades
+  // Obtener SOLO actividades de CICLISMO (Ride y VirtualRide)
   const activities = await prisma.activity.findMany({
-    where: { athleteId },
+    where: { 
+      athleteId,
+      type: { in: ['RIDE', 'VIRTUAL_RIDE'] },
+    },
     orderBy: { startDate: 'desc' },
   });
 
   onProgress(10);
 
-  // Calcular PRs de distancia
+  // Calcular PRs de distancia para CICLISMO
   const distances = [
-    { dist: 5000, field: 'pr5k' },
-    { dist: 10000, field: 'pr10k' },
-    { dist: 21097.5, field: 'prHalfMarathon' },
-    { dist: 42195, field: 'prMarathon' },
+    { dist: 5000, field: 'pr5km', label: '5 km' },
+    { dist: 10000, field: 'pr10km', label: '10 km' },
+    { dist: 20000, field: 'pr20km', label: '20 km' },
+    { dist: 30000, field: 'pr30km', label: '30 km' },
+    { dist: 50000, field: 'pr50km', label: '50 km' },
+    { dist: 75000, field: 'pr75km', label: '75 km' },
+    { dist: 90000, field: 'pr90km', label: '90 km' },
+    { dist: 100000, field: 'pr100km', label: '100 km' },
   ];
 
   const prData: Record<string, number | null> = {};
@@ -467,15 +474,19 @@ async function syncAthleteRecords(
 
   onProgress(90);
 
-  // Guardar en BD
+  // Guardar en BD - CICLISMO
   await prisma.athleteRecord.upsert({
     where: { athleteId },
     create: {
       athleteId,
-      pr5k: prData['pr5k'],
-      pr10k: prData['pr10k'],
-      prHalfMarathon: prData['prHalfMarathon'],
-      prMarathon: prData['prMarathon'],
+      pr5km: prData['pr5km'],
+      pr10km: prData['pr10km'],
+      pr20km: prData['pr20km'],
+      pr30km: prData['pr30km'],
+      pr50km: prData['pr50km'],
+      pr75km: prData['pr75km'],
+      pr90km: prData['pr90km'],
+      pr100km: prData['pr100km'],
       power5s: prData['power5s'],
       power15s: prData['power15s'],
       power30s: prData['power30s'],
@@ -499,10 +510,14 @@ async function syncAthleteRecords(
       totalActivities: activities.length,
     },
     update: {
-      pr5k: prData['pr5k'],
-      pr10k: prData['pr10k'],
-      prHalfMarathon: prData['prHalfMarathon'],
-      prMarathon: prData['prMarathon'],
+      pr5km: prData['pr5km'],
+      pr10km: prData['pr10km'],
+      pr20km: prData['pr20km'],
+      pr30km: prData['pr30km'],
+      pr50km: prData['pr50km'],
+      pr75km: prData['pr75km'],
+      pr90km: prData['pr90km'],
+      pr100km: prData['pr100km'],
       power5s: prData['power5s'],
       power15s: prData['power15s'],
       power30s: prData['power30s'],

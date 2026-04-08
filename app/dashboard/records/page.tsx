@@ -9,7 +9,8 @@ import {
   Calendar,
   Activity,
   Flame,
-  Gauge
+  Gauge,
+  Bike
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SyncManager } from '@/components/sync/SyncManager';
@@ -58,6 +59,18 @@ const RECENT_PERIODS = [
   { label: '90 días', days: 90 },
   { label: '180 días', days: 180 },
   { label: '1 año', days: 365 },
+];
+
+// DISTANCIAS DE CICLISMO (no running)
+const CYCLING_DISTANCES = [
+  { distance: 5000, label: '5 km CRI' },
+  { distance: 10000, label: '10 km CRI' },
+  { distance: 20000, label: '20 km' },
+  { distance: 30000, label: '30 km' },
+  { distance: 50000, label: '50 km' },
+  { distance: 75000, label: '75 km' },
+  { distance: 90000, label: '90 km' },
+  { distance: 100000, label: '100 km Century' },
 ];
 
 export default function RecordsPage() {
@@ -134,8 +147,8 @@ export default function RecordsPage() {
     return { color: 'text-zinc-400', bg: 'bg-zinc-800', border: 'border-zinc-700', label: '' };
   };
 
-  const pr10k = data?.distancePRs.find(p => p.distance === 10000);
-  const pr5min = data?.powerPRs.find(p => p.duration === 300);
+  const pr40km = data?.distancePRs.find(p => p.distance === 40000);
+  const pr20min = data?.powerPRs.find(p => p.duration === 1200);
 
   if (!athleteId || isLoading) {
     return (
@@ -147,15 +160,20 @@ export default function RecordsPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-8">
-      {/* Header con SyncManager */}
+      {/* Header con icono de bici */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Récords & Análisis</h1>
-          <p className="mt-1 text-zinc-400">Tus mejores marcas y métricas de rendimiento</p>
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-[#FC4C02]/10">
+            <Bike className="h-8 w-8 text-[#FC4C02]" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-white">Récords de Ciclismo</h1>
+            <p className="mt-1 text-zinc-400">Tus mejores marcas y métricas de rendimiento</p>
+          </div>
         </div>
       </div>
 
-      {/* SyncManager - Componente transversal de sincronización */}
+      {/* SyncManager */}
       <SyncManager athleteId={athleteId} onSyncComplete={fetchRecords} />
 
       {/* Selector de período */}
@@ -198,7 +216,7 @@ export default function RecordsPage() {
           </CardContent>
         </Card>
 
-        {/* Mejor 10K */}
+        {/* Mejor 40K (CRI olímpico) */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -206,15 +224,15 @@ export default function RecordsPage() {
                 <Trophy className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500">Mejor 10K</p>
-                <p className="text-2xl font-bold text-white">{formatTime(pr10k?.bestTime || null)}</p>
-                <p className="text-sm text-blue-400">{formatSpeed(pr10k?.bestSpeed || null)}</p>
+                <p className="text-sm text-zinc-500">Mejor 40K (CRI)</p>
+                <p className="text-2xl font-bold text-white">{formatTime(pr40km?.bestTime || null)}</p>
+                <p className="text-sm text-blue-400">{formatSpeed(pr40km?.bestSpeed || null)}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Potencia Máx (5min) */}
+        {/* Potencia 20min (para FTP) */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -222,24 +240,24 @@ export default function RecordsPage() {
                 <Flame className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500">Potencia Máx (5min)</p>
-                <p className="text-2xl font-bold text-white">{pr5min?.power || '--'} W</p>
-                <p className="text-sm text-green-400">{pr5min?.wkg?.toFixed(2) || '--'} W/kg</p>
+                <p className="text-sm text-zinc-500">Potencia Máx (20min)</p>
+                <p className="text-2xl font-bold text-white">{pr20min?.power || '--'} W</p>
+                <p className="text-sm text-green-400">{pr20min?.wkg?.toFixed(2) || '--'} W/kg</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Total actividades */}
+        {/* Total actividades ciclismo */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-500/10">
-                <Activity className="h-5 w-5 text-purple-500" />
+                <Bike className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500">Total {selectedPeriod} días</p>
-                <p className="text-2xl font-bold text-white">-- act</p>
+                <p className="text-sm text-zinc-500">Total Ciclismo</p>
+                <p className="text-2xl font-bold text-white">--</p>
                 <p className="text-sm text-purple-400">-- km</p>
               </div>
             </div>
@@ -248,12 +266,12 @@ export default function RecordsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Mejores Tiempos por Distancia */}
+        {/* Mejores Tiempos por Distancia - CICLISMO */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              Mejores Tiempos por Distancia
+              <Bike className="h-5 w-5 text-yellow-500" />
+              Mejores Tiempos (Ciclismo)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -266,10 +284,10 @@ export default function RecordsPage() {
                     className={`flex items-center justify-between p-3 rounded-lg border ${freshness.border} ${freshness.bg} transition-colors`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-white w-20">{pr.label}</span>
+                      <span className="text-sm font-medium text-white w-28">{pr.label}</span>
                       <div>
                         <p className="text-lg font-bold text-white">{formatTime(pr.bestTime)}</p>
-                        <p className="text-xs text-zinc-500">{formatSpeed(pr.bestSpeed)} • {formatPace(pr.bestPace)}</p>
+                        <p className="text-xs text-zinc-500">{formatSpeed(pr.bestSpeed)} avg</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -324,7 +342,7 @@ export default function RecordsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
               <TrendingUp className="h-5 w-5 text-blue-500" />
-              Curva de Potencia
+              Curva de Potencia (Ciclismo)
             </CardTitle>
           </CardHeader>
           <CardContent>

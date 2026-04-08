@@ -339,11 +339,15 @@ model AthleteRecord {
   id                String   @id @default(cuid())
   athleteId         String   @unique
   
-  // PRs de distancia desde Strava (en segundos)
-  pr5k              Int?     // 5 km
-  pr10k             Int?     // 10 km
-  prHalfMarathon    Int?     // 21.097 km
-  prMarathon        Int?     // 42.195 km
+  // PRs de distancia de CICLISMO (en segundos)
+  pr5km             Int?     // 5 km (CRI corto)
+  pr10km            Int?     // 10 km (CRI)
+  pr20km            Int?     // 20 km
+  pr30km            Int?     // 30 km
+  pr50km            Int?     // 50 km
+  pr75km            Int?     // 75 km
+  pr90km            Int?     // 90 km
+  pr100km           Int?     // 100 km (Century)
   
   // PRs de potencia desde Strava (en vatios)
   power5s           Int?
