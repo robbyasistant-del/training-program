@@ -76,6 +76,9 @@ model Athlete {
   metricPRs         MetricPR[]
   prNotifications   PRNotification[]
   athleteRecord     AthleteRecord?
+  trainingGoals     TrainingGoal[]
+  trainerConversations TrainingConversation[]
+  trainingPlans     WeeklyTrainingPlan[]
 
   @@index([stravaId])
   @@index([email])
@@ -383,4 +386,91 @@ model AthleteRecord {
 
   @@index([athleteId])
   @@index([updatedAt])
+}
+
+model TrainingGoal {
+  id             String   @id @default(cuid())
+  athleteId      String
+  title          String
+  eventDate      DateTime
+  distanceKm     Float
+  elevationM     Int?
+  objective      String
+  status         String   @default("planned")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  athlete        Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([eventDate])
+  @@index([status])
+}
+
+model TrainingConversation {
+  id             String   @id @default(cuid())
+  athleteId      String
+  title          String   @default("Personal Trainer")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  athlete        Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  messages       TrainingMessage[]
+
+  @@index([athleteId])
+  @@index([updatedAt])
+}
+
+model TrainingMessage {
+  id               String   @id @default(cuid())
+  conversationId   String
+  role             String   // user | assistant | system
+  content          String
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  conversation     TrainingConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model WeeklyTrainingPlan {
+  id               String   @id @default(cuid())
+  athleteId        String
+  weekStart        DateTime @db.Date
+  title            String?
+  focus            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  athlete          Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  days             WeeklyTrainingDay[]
+
+  @@unique([athleteId, weekStart])
+  @@index([athleteId])
+  @@index([weekStart])
+}
+
+model WeeklyTrainingDay {
+  id               String   @id @default(cuid())
+  planId           String
+  dayDate          DateTime @db.Date
+  weekday          Int      // 1-7 (Mon-Sun)
+  title            String
+  description      String?
+  targetIF         Float?
+  targetTSS        Int?
+  plannedDurationMin Int?
+  workoutType      String?
+  completed        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  plan             WeeklyTrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, dayDate])
+  @@index([planId])
+  @@index([dayDate])
 }

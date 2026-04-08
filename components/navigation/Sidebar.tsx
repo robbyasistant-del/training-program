@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  CalendarDays,
 } from 'lucide-react';
 
 interface NavItem {
@@ -41,6 +42,12 @@ const navItems: NavItem[] = [
     href: '/dashboard/records',
     icon: <Trophy className="h-5 w-5" />,
     description: 'Tus mejores marcas',
+  },
+  {
+    label: 'Entrenamiento',
+    href: '/dashboard/training',
+    icon: <CalendarDays className="h-5 w-5" />,
+    description: 'Coach, objetivos y semana',
   },
   {
     label: 'Perfil',
