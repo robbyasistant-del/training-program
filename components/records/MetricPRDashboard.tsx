@@ -21,7 +21,11 @@ interface MetricPRData {
   count: number;
 }
 
-export function MetricPRDashboard() {
+interface MetricPRDashboardProps {
+  athleteId: string;
+}
+
+export function MetricPRDashboard({ athleteId }: MetricPRDashboardProps) {
   const [data, setData] = useState<MetricPRData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +45,6 @@ export function MetricPRDashboard() {
   useEffect(() => {
     async function fetchMetricPRs() {
       try {
-        // Note: This should use the actual athlete ID from context/auth
-        const athleteId = 'current-user-id';
         const response = await fetch(`/api/athletes/${athleteId}/metric-prs`);
 
         if (!response.ok) {
@@ -59,13 +61,12 @@ export function MetricPRDashboard() {
     }
 
     fetchMetricPRs();
-  }, []);
+  }, [athleteId]);
 
   // Poll for notifications
   useEffect(() => {
     async function checkNotifications() {
       try {
-        const athleteId = 'current-user-id';
         const response = await fetch(`/api/athletes/${athleteId}/notifications`);
 
         if (response.ok) {
@@ -81,14 +82,13 @@ export function MetricPRDashboard() {
 
     const interval = setInterval(checkNotifications, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [athleteId]);
 
   // Dismiss notification
   const dismissNotification = async (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
 
     try {
-      const athleteId = 'current-user-id';
       await fetch(`/api/athletes/${athleteId}/notifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,7 +213,7 @@ export function MetricPRDashboard() {
         >
           <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
             <MetricPRHistoryChart
-              athleteId="current-user-id"
+              athleteId={athleteId}
               activityType={selectedMetric.activityType}
               metricType={selectedMetric.metricType}
               onClose={() => setSelectedMetric(null)}

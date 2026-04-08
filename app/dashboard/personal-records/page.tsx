@@ -34,8 +34,7 @@ export default function PersonalRecordsPage({ searchParams }: PageProps) {
   const athleteId = searchParams.athleteId ?? null;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <main className="container mx-auto px-4 py-8 pt-20 lg:pt-8">
+    <div className="p-4 md:p-8">
         <div className="mb-8">
           <div className="flex items-center gap-3">
             <Trophy className="h-8 w-8 text-yellow-500" />
@@ -149,7 +148,6 @@ export default function PersonalRecordsPage({ searchParams }: PageProps) {
             </ul>
           </CardContent>
         </Card>
-      </main>
     </div>
   );
 }

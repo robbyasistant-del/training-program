@@ -150,9 +150,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      {/* Main content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="p-4 md:p-8">
         {/* Header con selector de semana */}
         <div className="mb-6">
           <h2 className="mb-4 text-2xl font-bold text-white">Dashboard</h2>
@@ -322,7 +320,6 @@ export default function DashboardPage() {
             )}
           </>
         )}
-      </main>
     </div>
   );
 }
