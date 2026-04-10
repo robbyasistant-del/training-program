@@ -76,14 +76,14 @@ const RECENT_PERIODS = [
 
 // DISTANCIAS DE CICLISMO (no running)
 const CYCLING_DISTANCES = [
-  { distance: 5000, label: '5 km CRI' },
-  { distance: 10000, label: '10 km CRI' },
+  { distance: 5000, label: '5 km' },
+  { distance: 10000, label: '10 km' },
   { distance: 20000, label: '20 km' },
   { distance: 30000, label: '30 km' },
   { distance: 50000, label: '50 km' },
   { distance: 75000, label: '75 km' },
   { distance: 90000, label: '90 km' },
-  { distance: 100000, label: '100 km Century' },
+  { distance: 100000, label: '100 km' },
 ];
 
 export default function RecordsPage() {

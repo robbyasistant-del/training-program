@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/db';
+import { askGatewayLlm } from '@/lib/gateway-llm';
+import { calculateTSS, estimateNormalizedPower } from '@/lib/fitness/tssCalculator';
 
 type TrainerContext = {
   athleteId: string;
@@ -127,6 +129,109 @@ export async function ensureTrainingMvpData(athleteId: string) {
   return { athlete, conversation, weekPlan };
 }
 
+function round1(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return null;
+  return Math.round(value * 10) / 10;
+}
+
+function formatMinutesLabel(totalMinutes: number | null | undefined) {
+  if (totalMinutes == null || totalMinutes <= 0) return '--';
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+function buildCompletionAssessment(planned: { tss: number | null; ifValue: number | null; durationMin: number | null }, actual: { tss: number | null; ifValue: number | null; durationMin: number | null } | null) {
+  if (!planned.tss && !planned.ifValue && !planned.durationMin && !actual) {
+    return null;
+  }
+
+  if ((planned.tss || planned.ifValue || planned.durationMin) && !actual) {
+    return {
+      label: 'Sin completar',
+      tone: 'slate',
+      score: 0,
+      summary: 'Había sesión planificada y no consta actividad registrada.',
+      tssGap: planned.tss,
+      ifGap: planned.ifValue,
+      durationGapMin: planned.durationMin,
+    };
+  }
+
+  if (!(planned.tss || planned.ifValue || planned.durationMin) && actual) {
+    return {
+      label: 'No planificado',
+      tone: 'blue',
+      score: 70,
+      summary: 'Hay actividad registrada en un día sin objetivo planificado.',
+      tssGap: actual.tss,
+      ifGap: actual.ifValue,
+      durationGapMin: actual.durationMin,
+    };
+  }
+
+  if (!actual) return null;
+
+  const plannedTss = planned.tss ?? 0;
+  const actualTss = actual.tss ?? 0;
+  const tssRatio = plannedTss > 0 ? actualTss / plannedTss : null;
+  const tssGap = actualTss - plannedTss;
+  const ifGap = (actual.ifValue ?? 0) - (planned.ifValue ?? 0);
+  const durationGapMin = (actual.durationMin ?? 0) - (planned.durationMin ?? 0);
+  const absIfGap = Math.abs(ifGap);
+
+  let label = 'Desviado';
+  let tone = 'amber';
+  let score = 60;
+
+  if (tssRatio !== null) {
+    if (tssRatio >= 0.9 && tssRatio <= 1.1 && absIfGap <= 0.05) {
+      label = 'Perfecto';
+      tone = 'emerald';
+      score = 100;
+    } else if (tssRatio >= 0.8 && tssRatio <= 1.2 && absIfGap <= 0.08) {
+      label = 'Muy bien';
+      tone = 'green';
+      score = 88;
+    } else if (tssRatio < 0.8) {
+      label = 'Insuficiente';
+      tone = 'amber';
+      score = Math.max(35, Math.round(tssRatio * 100));
+    } else if (tssRatio > 1.35 || ifGap > 0.1) {
+      label = 'Sobreentrenado';
+      tone = 'red';
+      score = 25;
+    } else if (tssRatio > 1.2) {
+      label = 'Exceso controlado';
+      tone = 'orange';
+      score = 55;
+    }
+  }
+
+  return {
+    label,
+    tone,
+    score,
+    summary:
+      label === 'Perfecto'
+        ? 'Carga e intensidad muy alineadas con el objetivo.'
+        : label === 'Muy bien'
+          ? 'Sesión bien ejecutada, con desviación pequeña.'
+          : label === 'Insuficiente'
+            ? 'La carga se quedó corta respecto al estímulo planificado.'
+            : label === 'Sobreentrenado'
+              ? 'La sesión salió claramente más exigente de lo previsto.'
+              : label === 'Exceso controlado'
+                ? 'Has metido más carga de la prevista, aunque aún cerca del objetivo.'
+                : 'La carga total o la intensidad no se parecen del todo al objetivo.',
+    tssGap: round1(tssGap),
+    ifGap: round1(ifGap),
+    durationGapMin,
+  };
+}
+
 export async function getTrainingDashboardData(athleteId: string) {
   const { athlete, conversation, weekPlan } = await ensureTrainingMvpData(athleteId);
 
@@ -148,6 +253,7 @@ export async function getTrainingDashboardData(athleteId: string) {
     orderBy: { startDate: 'asc' },
   });
 
+  const ftp = athlete.athleteRecord?.estimatedFTP || null;
   const plannedTSS = weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0);
   const completedDistanceKm = activities.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000;
   const completedElevation = activities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
@@ -180,16 +286,66 @@ export async function getTrainingDashboardData(athleteId: string) {
           const a = new Date(activity.startDate);
           return a.toDateString() === new Date(day.dayDate).toDateString();
         });
-        return {
-          ...day,
-          actualActivities: realActivities.map((activity) => ({
+        const plannedMetrics = {
+          tss: day.targetTSS ?? null,
+          ifValue: round1(day.targetIF ?? null),
+          durationMin: day.plannedDurationMin ?? null,
+          durationLabel: formatMinutesLabel(day.plannedDurationMin ?? null),
+        };
+
+        const actualActivities = realActivities.map((activity) => {
+          const durationMin = Math.round((activity.movingTime || 0) / 60);
+          const raw = activity.rawJson && typeof activity.rawJson === 'object'
+            ? (activity.rawJson as Record<string, unknown>)
+            : null;
+          const normalizedPower = typeof raw?.weighted_average_watts === 'number'
+            ? raw.weighted_average_watts
+            : activity.averagePower
+              ? estimateNormalizedPower(activity.averagePower)
+              : null;
+          const inferredIf = ftp && normalizedPower ? normalizedPower / ftp : null;
+          const calculatedTss = activity.movingTime
+            ? calculateTSS({
+                type: activity.type,
+                durationSeconds: activity.movingTime,
+                ...(activity.distance != null ? { distanceMeters: activity.distance } : {}),
+                ...(activity.averagePower != null ? { averagePower: activity.averagePower } : {}),
+                ...(normalizedPower != null ? { normalizedPower } : {}),
+                ...(ftp != null ? { functionalThresholdPower: ftp } : {}),
+                ...(activity.averageHeartrate != null ? { averageHeartrate: activity.averageHeartrate } : {}),
+                ...(activity.maxHeartrate != null ? { maxHeartrate: activity.maxHeartrate } : {}),
+              }).tss
+            : 0;
+
+          return {
             id: activity.id,
             name: activity.name,
             distanceKm: ((activity.distance || 0) / 1000).toFixed(1),
             elevationM: Math.round(activity.totalElevationGain || 0),
-            movingTimeMin: Math.round((activity.movingTime || 0) / 60),
+            movingTimeMin: durationMin,
+            durationLabel: formatMinutesLabel(durationMin),
             averagePower: activity.averagePower,
-          })),
+            tss: round1(activity.tss ?? calculatedTss),
+            ifValue: round1(inferredIf),
+          };
+        });
+
+        const aggregatedActual = actualActivities.length
+          ? {
+              tss: round1(actualActivities.reduce((sum, activity) => sum + (activity.tss ?? 0), 0)),
+              ifValue: round1(
+                actualActivities.reduce((sum, activity) => sum + ((activity.ifValue ?? 0) * activity.movingTimeMin), 0) /
+                  Math.max(1, actualActivities.reduce((sum, activity) => sum + activity.movingTimeMin, 0))
+              ),
+              durationMin: actualActivities.reduce((sum, activity) => sum + activity.movingTimeMin, 0),
+            }
+          : null;
+
+        return {
+          ...day,
+          plannedMetrics,
+          actualActivities,
+          completion: buildCompletionAssessment(plannedMetrics, aggregatedActual),
         };
       }),
     },
@@ -209,7 +365,7 @@ export async function createTrainingGoal(athleteId: string, input: {
       title: input.title,
       eventDate: new Date(input.eventDate),
       distanceKm: input.distanceKm,
-      elevationM: input.elevationM,
+      elevationM: input.elevationM ?? null,
       objective: input.objective,
       status: 'planned',
     },
@@ -256,31 +412,72 @@ export async function appendTrainerMessage(athleteId: string, userMessage: strin
     },
   });
 
-  const reply = buildFallbackTrainerReply(
-    {
-      athleteId,
-      athleteName: `${athlete.firstname} ${athlete.lastname}`,
-      ftp: athlete.athleteRecord?.estimatedFTP || null,
-      goals: goals.map((g) => ({ title: g.title, eventDate: g.eventDate, objective: g.objective })),
-      recentMessages: recentMessages.map((m) => ({ role: m.role, content: m.content })),
-      weekSummary: {
-        plannedTSS: weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0),
-        completedActivities: activitiesThisWeek.length,
-        totalDistanceKm: activitiesThisWeek.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000,
-      },
+  const context = {
+    athleteId,
+    athleteName: `${athlete.firstname} ${athlete.lastname}`,
+    ftp: athlete.athleteRecord?.estimatedFTP || null,
+    goals: goals.map((g) => ({ title: g.title, eventDate: g.eventDate, objective: g.objective })),
+    recentMessages: recentMessages.map((m) => ({ role: m.role, content: m.content })),
+    weekSummary: {
+      plannedTSS: weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0),
+      completedActivities: activitiesThisWeek.length,
+      totalDistanceKm: activitiesThisWeek.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000,
     },
-    userMessage
-  );
+  };
+
+  let reply = '';
+  let metadata: Record<string, unknown> = {
+    gatewayReady: true,
+  };
+
+  try {
+    const systemPrompt = [
+      'Eres un entrenador personal de ciclismo, útil, directo y práctico.',
+      'Responde en español natural, cercano, corto-medio, con foco en decisiones accionables.',
+      'Ten en cuenta objetivos, FTP, carga semanal, fatiga y actividades reales.',
+      'Si faltan datos, dilo claramente y evita inventar.',
+      'Puedes sugerir ajustes de entrenamiento, pacing, recuperación, nutrición y estrategia.',
+    ].join(' ');
+
+    const contextPrompt = [
+      `Atleta: ${context.athleteName}`,
+      `FTP estimado: ${context.ftp ?? 'desconocido'} W`,
+      `TSS planificado semana: ${context.weekSummary.plannedTSS}`,
+      `Actividades completadas semana: ${context.weekSummary.completedActivities}`,
+      `Distancia real semana: ${context.weekSummary.totalDistanceKm.toFixed(1)} km`,
+      `Objetivos: ${context.goals.length ? context.goals.map((g) => `${g.title} (${g.objective}) ${g.eventDate.toLocaleDateString('es-ES')}`).join(' | ') : 'sin objetivos definidos'}`,
+      `Contexto reciente: ${context.recentMessages.length ? context.recentMessages.reverse().map((m) => `${m.role}: ${m.content}`).join('\n') : 'sin conversación previa'}`,
+    ].join('\n');
+
+    const gateway = await askGatewayLlm([
+      { role: 'system', content: systemPrompt },
+      { role: 'system', content: contextPrompt },
+      { role: 'user', content: userMessage },
+    ]);
+
+    reply = gateway.content?.trim();
+    metadata = {
+      ...metadata,
+      source: 'gateway-llm',
+      model: gateway.model,
+      usage: gateway.usage,
+    };
+  } catch (error) {
+    console.error('Training gateway LLM fallback:', error);
+    reply = buildFallbackTrainerReply(context, userMessage);
+    metadata = {
+      ...metadata,
+      source: 'fallback-trainer',
+      fallbackReason: error instanceof Error ? error.message : 'unknown-error',
+    };
+  }
 
   const assistantMessage = await prisma.trainingMessage.create({
     data: {
       conversationId: conversation.id,
       role: 'assistant',
       content: reply,
-      metadata: {
-        source: 'fallback-trainer',
-        gatewayReady: true,
-      },
+      metadata: metadata as any,
     },
   });
 

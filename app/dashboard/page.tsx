@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 
 import { ActivityList } from '@/components/activity';
-import { WeeklyStatsCard } from '@/components/dashboard/WeeklyStatsCard';
 import { ProgressRing } from '@/components/dashboard/ProgressRing';
 import { WeeklyActivityChart } from '@/components/dashboard/WeeklyActivityChart';
 import { WeekSelector } from '@/components/dashboard/WeekSelector';
@@ -181,45 +180,6 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <>
-            {/* Stats Grid */}
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {loading ? (
-                <>
-                  <Skeleton className="h-32" />
-                  <Skeleton className="h-32" />
-                  <Skeleton className="h-32" />
-                  <Skeleton className="h-32" />
-                </>
-              ) : stats ? (
-                <>
-                  <WeeklyStatsCard
-                    title="Distancia"
-                    value={stats.summary.totalDistance}
-                    unit="km"
-                    icon="distance"
-                  />
-                  <WeeklyStatsCard
-                    title="Tiempo"
-                    value={formatTotalTime(stats.summary.totalTime)}
-                    unit=""
-                    icon="time"
-                  />
-                  <WeeklyStatsCard
-                    title="Elevación"
-                    value={stats.summary.totalElevation}
-                    unit="m"
-                    icon="elevation"
-                  />
-                  <WeeklyStatsCard
-                    title="Actividades"
-                    value={stats.summary.activityCount}
-                    unit=""
-                    icon="activities"
-                  />
-                </>
-              ) : null}
-            </div>
-
             {/* Progress Rings & Chart */}
             <div className="mb-6 grid gap-6 lg:grid-cols-3">
               {/* Progress Goals */}

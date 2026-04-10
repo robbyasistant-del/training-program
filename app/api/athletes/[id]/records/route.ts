@@ -101,14 +101,14 @@ export async function GET(
 // PRs de distancia vacíos - CICLISMO
 function getEmptyDistancePRs() {
   const distances = [
-    { distance: 5000, label: '5 km CRI' },
-    { distance: 10000, label: '10 km CRI' },
+    { distance: 5000, label: '5 km' },
+    { distance: 10000, label: '10 km' },
     { distance: 20000, label: '20 km' },
     { distance: 30000, label: '30 km' },
     { distance: 50000, label: '50 km' },
     { distance: 75000, label: '75 km' },
     { distance: 90000, label: '90 km' },
-    { distance: 100000, label: '100 km Century' },
+    { distance: 100000, label: '100 km' },
   ];
   
   return distances.map(({ distance, label }) => ({
@@ -154,14 +154,14 @@ function getEmptyPowerPRs(weight: number) {
 // Formatear PRs de distancia desde AthleteRecord - CICLISMO
 function formatDistancePRs(record: any, weight: number) {
   const distances = [
-    { field: 'pr5km', distance: 5000, label: '5 km CRI' },
-    { field: 'pr10km', distance: 10000, label: '10 km CRI' },
+    { field: 'pr5km', distance: 5000, label: '5 km' },
+    { field: 'pr10km', distance: 10000, label: '10 km' },
     { field: 'pr20km', distance: 20000, label: '20 km' },
     { field: 'pr30km', distance: 30000, label: '30 km' },
     { field: 'pr50km', distance: 50000, label: '50 km' },
     { field: 'pr75km', distance: 75000, label: '75 km' },
     { field: 'pr90km', distance: 90000, label: '90 km' },
-    { field: 'pr100km', distance: 100000, label: '100 km Century' },
+    { field: 'pr100km', distance: 100000, label: '100 km' },
   ];
 
   // Para distancias intermedias, calcular desde actividades si no hay PR guardado
