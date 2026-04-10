@@ -102,7 +102,7 @@ interface DashboardData {
   };
 }
 
-const weekdayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const weekdayLabels = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 const emptyGoalForm = {
   title: '',
@@ -166,6 +166,11 @@ export default function TrainingPage() {
 
     const anchor = new Date(data.weekPlan.weekStart);
     anchor.setMonth(anchor.getMonth() + monthOffset);
+    
+    // Find the Monday of the week containing the anchor date
+    const dayOfWeek = anchor.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days, else go to Monday
+    anchor.setDate(anchor.getDate() + diffToMonday);
 
     const weeks = [];
     for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
@@ -175,11 +180,33 @@ export default function TrainingPage() {
       const days = Array.from({ length: 7 }).map((_, dayIndex) => {
         const dayDate = new Date(weekStart);
         dayDate.setDate(weekStart.getDate() + dayIndex);
+        
+        // Format date as YYYY-MM-DD for comparison
+        const dateStr = dayDate.toISOString().slice(0, 10);
 
+        // Find the actual day data by exact date match
         const sourceDay = data.weekPlan.days.find((d) => {
-          const base = new Date(d.dayDate);
-          return base.getDay() === dayDate.getDay() || (dayIndex === 0 && base.getDay() === 1);
-        }) || data.weekPlan.days[Math.min(dayIndex, data.weekPlan.days.length - 1)];
+          return d.dayDate.slice(0, 10) === dateStr;
+        });
+
+        // If no exact match, create an empty day
+        if (!sourceDay) {
+          return {
+            id: `empty-${dateStr}`,
+            dayDate: dateStr,
+            weekday: (dayIndex + 1) % 7 || 7, // 1=Monday, 7=Sunday
+            title: 'Descanso',
+            description: null,
+            targetIF: null,
+            targetTSS: null,
+            plannedDurationMin: null,
+            plannedMetrics: { tss: null, ifValue: null, durationMin: null, durationLabel: '--' },
+            completion: null,
+            actualActivities: [],
+            syntheticDate: dayDate,
+            syntheticId: `empty-${dateStr}`,
+          };
+        }
 
         return {
           ...sourceDay,
@@ -272,6 +299,15 @@ export default function TrainingPage() {
     setGoalToDelete(null);
   };
 
+  // Helper to check if a date is before today
+  const isBeforeToday = (date: Date): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate < today;
+  };
+
   if (loading || !data) {
     return <div className="flex min-h-screen items-center justify-center text-zinc-400">Cargando entrenamiento...</div>;
   }
@@ -357,57 +393,79 @@ export default function TrainingPage() {
                 </div>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-7 gap-3">
-                {week.days.map((day, dayIndex) => (
-                  <div key={day.syntheticId} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3 min-h-[240px]">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs uppercase tracking-wide text-zinc-500">{weekdayLabels[dayIndex]}</div>
-                        <div className="text-sm font-semibold text-white">{day.syntheticDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</div>
-                      </div>
-                      <WeatherInline weather={weatherByDate[day.syntheticDate.toISOString().slice(0, 10)]} />
-                    </div>
-                    <div className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 mb-3">
-                      <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Objetivo</div>
-                      <div className="text-sm font-semibold text-white">{day.title}</div>
-                      <div className="mt-1 text-xs text-zinc-400">{day.description}</div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                        <MetricValueCard label="IF" value={day.plannedMetrics?.ifValue ?? '--'} />
-                        <MetricValueCard label="TSS" value={day.plannedMetrics?.tss ?? '--'} />
-                        <MetricValueCard label="T" value={day.plannedMetrics?.durationLabel ?? '--'} />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {day.actualActivities.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-zinc-700 p-3 text-xs text-zinc-500">Sin actividad registrada</div>
-                      ) : day.actualActivities.map((activity) => (
-                        <div key={`${day.syntheticId}-${activity.id}`} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                          <div className="text-[11px] uppercase tracking-wide text-emerald-400/80 mb-2">Actividad registrada</div>
-                          <div className="text-sm font-medium text-white">{activity.name}</div>
-                          <div className="mt-1 text-xs text-zinc-300">{activity.distanceKm} km · {activity.durationLabel}</div>
-                          <div className="text-xs text-emerald-300">{activity.elevationM} m · {activity.averagePower ? `${Math.round(activity.averagePower)} W` : 'sin potencia'}</div>
-                          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                            <MetricValueCard label="IF" value={activity.ifValue ?? '--'} dark />
-                            <MetricValueCard label="TSS" value={activity.tss ?? '--'} dark />
-                            <MetricValueCard label="T" value={activity.durationLabel} dark />
-                          </div>
+                {week.days.map((day, dayIndex) => {
+                  const isPastDay = isBeforeToday(day.syntheticDate);
+                  const plannedTSS = day.plannedMetrics?.tss ?? 0;
+                  const plannedIF = day.plannedMetrics?.ifValue ?? 0;
+                  const plannedDuration = day.plannedMetrics?.durationMin ?? 0;
+                  
+                  // For past days with no activity, calculate delta as negative planned values
+                  const showMissedDay = isPastDay && day.actualActivities.length === 0 && plannedTSS > 0;
+                  
+                  return (
+                    <div key={day.syntheticId} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3 min-h-[240px]">
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs uppercase tracking-wide text-zinc-500">{weekdayLabels[dayIndex]}</div>
+                          <div className="text-sm font-semibold text-white">{day.syntheticDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</div>
                         </div>
-                      ))}
+                        <WeatherInline weather={weatherByDate[day.syntheticDate.toISOString().slice(0, 10)]} />
+                      </div>
+                      <div className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 mb-3">
+                        <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Objetivo</div>
+                        <div className="text-sm font-semibold text-white">{day.title}</div>
+                        <div className="mt-1 text-xs text-zinc-400">{day.description}</div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                          <MetricValueCard label="IF" value={day.plannedMetrics?.ifValue ?? '--'} />
+                          <MetricValueCard label="TSS" value={day.plannedMetrics?.tss ?? '--'} />
+                          <MetricValueCard label="T" value={day.plannedMetrics?.durationLabel ?? '--'} />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {day.actualActivities.length === 0 ? (
+                          showMissedDay ? (
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                              <div className="text-[11px] uppercase tracking-wide text-red-400/80 mb-2">No completado</div>
+                              <div className="text-xs text-zinc-400 mb-2">Sesión no realizada</div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <MetricValueCard label="Δ IF" value={formatDelta(-plannedIF)} dark />
+                                <MetricValueCard label="Δ TSS" value={formatDelta(-plannedTSS)} dark />
+                                <MetricValueCard label="Δ T" value={formatMinutesDelta(-plannedDuration)} dark />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-zinc-700 p-3 text-xs text-zinc-500">Sin actividad registrada</div>
+                          )
+                        ) : day.actualActivities.map((activity) => (
+                          <div key={`${day.syntheticId}-${activity.id}`} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                            <div className="text-[11px] uppercase tracking-wide text-emerald-400/80 mb-2">Actividad registrada</div>
+                            <div className="text-sm font-medium text-white">{activity.name}</div>
+                            <div className="mt-1 text-xs text-zinc-300">{activity.distanceKm} km · {activity.durationLabel}</div>
+                            <div className="text-xs text-emerald-300">{activity.elevationM} m · {activity.averagePower ? `${Math.round(activity.averagePower)} W` : 'sin potencia'}</div>
+                            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                              <MetricValueCard label="IF" value={activity.ifValue ?? '--'} dark />
+                              <MetricValueCard label="TSS" value={activity.tss ?? '--'} dark />
+                              <MetricValueCard label="T" value={activity.durationLabel} dark />
+                            </div>
+                          </div>
+                        ))}
 
-                      {day.completion && (
-                        <div className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
-                          <div className="mb-2 flex items-center justify-center">
-                            <ResultLabel label={day.completion.label} tone={day.completion.tone} />
+                        {day.completion && (
+                          <div className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
+                            <div className="mb-2 flex items-center justify-center">
+                              <ResultLabel label={day.completion.label} tone={day.completion.tone} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <MetricValueCard label="Δ TSS" value={formatDelta(day.completion.tssGap)} dark />
+                              <MetricValueCard label="Δ IF" value={formatDelta(day.completion.ifGap)} dark />
+                              <MetricValueCard label="Δ T" value={formatMinutesDelta(day.completion.durationGapMin)} dark />
+                            </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <MetricValueCard label="Δ TSS" value={formatDelta(day.completion.tssGap)} dark />
-                            <MetricValueCard label="Δ IF" value={formatDelta(day.completion.ifGap)} dark />
-                            <MetricValueCard label="Δ T" value={formatMinutesDelta(day.completion.durationGapMin)} dark />
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -449,25 +507,40 @@ export default function TrainingPage() {
 
 function MetricValueCard({ label, value, dark = false }: { label: string; value: string | number; dark?: boolean }) {
   const valueStr = String(value);
+  const labelStr = String(label);
   
-  // Calculate dynamic font sizes based on text length
+  // Calculate dynamic font sizes - more aggressive scaling for single line
   const getLabelSize = (text: string): string => {
-    if (text.length <= 2) return 'text-[10px]';
-    if (text.length <= 3) return 'text-[9px]';
+    const len = text.length;
+    if (len <= 2) return 'text-[11px]';
+    if (len <= 3) return 'text-[10px]';
+    if (len <= 4) return 'text-[9px]';
     return 'text-[8px]';
   };
   
   const getValueSize = (text: string): string => {
-    if (text.length <= 3) return 'text-sm';
-    if (text.length <= 5) return 'text-xs';
-    if (text.length <= 7) return 'text-[10px]';
+    const len = text.length;
+    if (len <= 2) return 'text-base';
+    if (len <= 3) return 'text-sm';
+    if (len <= 5) return 'text-xs';
+    if (len <= 7) return 'text-[10px]';
     return 'text-[9px]';
   };
   
   return (
-    <div className={`rounded-lg px-2 py-2 text-center min-h-[52px] flex flex-col justify-center ${dark ? 'bg-zinc-900/70' : 'bg-zinc-800/70'}`}>
-      <div className={`${getLabelSize(label)} uppercase tracking-wider text-zinc-400 mb-1`}>{label}</div>
-      <div className={`${getValueSize(valueStr)} font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis`}>{value}</div>
+    <div className={`rounded-lg px-1 py-2 text-center min-h-[52px] flex flex-col justify-center ${dark ? 'bg-zinc-900/70' : 'bg-zinc-800/70'}`}>
+      <div 
+        className={`${getLabelSize(labelStr)} uppercase tracking-wider text-zinc-400 mb-1 leading-none truncate`}
+        style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+      >
+        {label}
+      </div>
+      <div 
+        className={`${getValueSize(valueStr)} font-semibold text-white leading-none truncate`}
+        style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
