@@ -121,6 +121,17 @@ export default function TrainingPage() {
   const [goalToDelete, setGoalToDelete] = useState<Goal | null>(null);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [dayForm, setDayForm] = useState({
+    dayDate: '',
+    title: '',
+    description: '',
+    targetTSS: '',
+    targetIF: '',
+    plannedDurationMin: '',
+  });
+  const [editingDay, setEditingDay] = useState<TrainingDay | null>(null);
+  const [savingDay, setSavingDay] = useState(false);
+  const [dayModalOpen, setDayModalOpen] = useState(false);
   const [weatherByDate, setWeatherByDate] = useState<Record<string, WeatherDay>>({});
 
   const loadData = async () => {
@@ -294,6 +305,74 @@ export default function TrainingPage() {
     await fetch(`/api/training/goals?id=${goalToDelete.id}`, { method: 'DELETE' });
     await loadData();
     setGoalToDelete(null);
+  };
+
+  // Day management functions
+  const openDayModal = (day?: TrainingDay) => {
+    if (day && day.id && !day.id.startsWith('empty-')) {
+      setEditingDay(day);
+      setDayForm({
+        dayDate: day.dayDate.slice(0, 10),
+        title: day.title || '',
+        description: day.description || '',
+        targetTSS: day.plannedMetrics?.tss?.toString() || '',
+        targetIF: day.plannedMetrics?.ifValue?.toString() || '',
+        plannedDurationMin: day.plannedMetrics?.durationMin?.toString() || '',
+      });
+    } else {
+      setEditingDay(null);
+      setDayForm({
+        dayDate: day?.dayDate.slice(0, 10) || '',
+        title: '',
+        description: '',
+        targetTSS: '',
+        targetIF: '',
+        plannedDurationMin: '',
+      });
+    }
+    setDayModalOpen(true);
+  };
+
+  const closeDayModal = () => {
+    setDayModalOpen(false);
+    setEditingDay(null);
+    setDayForm({
+      dayDate: '',
+      title: '',
+      description: '',
+      targetTSS: '',
+      targetIF: '',
+      plannedDurationMin: '',
+    });
+  };
+
+  const handleDaySave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingDay(true);
+
+    await fetch('/api/training/days', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dayDate: dayForm.dayDate,
+        title: dayForm.title,
+        description: dayForm.description,
+        targetTSS: dayForm.targetTSS ? Number(dayForm.targetTSS) : null,
+        targetIF: dayForm.targetIF ? Number(dayForm.targetIF) : null,
+        plannedDurationMin: dayForm.plannedDurationMin ? Number(dayForm.plannedDurationMin) : null,
+      }),
+    });
+
+    await loadData();
+    setSavingDay(false);
+    closeDayModal();
+  };
+
+  const handleDayDelete = async () => {
+    if (!editingDay || !editingDay.id) return;
+    await fetch(`/api/training/days?id=${editingDay.id}`, { method: 'DELETE' });
+    await loadData();
+    closeDayModal();
   };
 
   const isBeforeToday = (date: Date): boolean => {
@@ -515,8 +594,28 @@ export default function TrainingPage() {
                 {/* Row 2: Objetivo cards */}
                 <div className="grid grid-cols-7 gap-3">
                   {week.days.map((day) => (
-                    <div key={`obj-${day.syntheticId}`} className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 h-[160px] flex flex-col">
-                      <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Objetivo</div>
+                    <div key={`obj-${day.syntheticId}`} className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 h-[160px] flex flex-col relative group">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-[11px] uppercase tracking-wide text-zinc-500">Objetivo</div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => openDayModal(day)}
+                            className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700"
+                            title="Editar día"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          {day.id && !day.id.startsWith('empty-') && (
+                            <button
+                              onClick={() => openDayModal(day)}
+                              className="p-1 rounded bg-zinc-800 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                              title="Borrar día"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       <div className="text-sm font-semibold text-white line-clamp-2">{day.title}</div>
                       <div className="mt-1 text-xs text-zinc-400 line-clamp-1">{day.description}</div>
                       <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
@@ -692,6 +791,82 @@ export default function TrainingPage() {
               <button onClick={handleGoalDelete} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500">Borrar</button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Day Edit/Create Modal */}
+      {dayModalOpen && (
+        <Modal onClose={closeDayModal} title={editingDay ? 'Editar día' : 'Añadir día'}>
+          <form onSubmit={handleDaySave} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input 
+              type="date" 
+              value={dayForm.dayDate} 
+              onChange={(e) => setDayForm((p) => ({ ...p, dayDate: e.target.value }))}
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+              required
+            />
+            <input 
+              value={dayForm.title} 
+              onChange={(e) => setDayForm((p) => ({ ...p, title: e.target.value }))}
+              placeholder="Título (ej: Entrenamiento largo)"
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <textarea 
+              value={dayForm.description} 
+              onChange={(e) => setDayForm((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Descripción del entrenamiento..."
+              className="md:col-span-2 min-h-[80px] rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={dayForm.targetTSS} 
+              onChange={(e) => setDayForm((p) => ({ ...p, targetTSS: e.target.value }))}
+              placeholder="TSS objetivo"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              step="0.01"
+              value={dayForm.targetIF} 
+              onChange={(e) => setDayForm((p) => ({ ...p, targetIF: e.target.value }))}
+              placeholder="IF objetivo (ej: 0.75)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={dayForm.plannedDurationMin} 
+              onChange={(e) => setDayForm((p) => ({ ...p, plannedDurationMin: e.target.value }))}
+              placeholder="Duración (minutos)"
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <div className="md:col-span-2 flex justify-between gap-2 pt-2">
+              {editingDay && editingDay.id && !editingDay.id.startsWith('empty-') && (
+                <button 
+                  type="button" 
+                  onClick={handleDayDelete}
+                  className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-semibold text-red-400 hover:bg-red-600/30"
+                >
+                  Borrar
+                </button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button 
+                  type="button" 
+                  onClick={closeDayModal}
+                  className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-700"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={savingDay}
+                  className="rounded-xl bg-[#FC4C02] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e14602] disabled:opacity-60"
+                >
+                  {editingDay ? 'Guardar cambios' : 'Crear día'}
+                </button>
+              </div>
+            </div>
+          </form>
         </Modal>
       )}
 
