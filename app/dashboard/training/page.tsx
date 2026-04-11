@@ -169,7 +169,7 @@ export default function TrainingPage() {
     
     // Find the Monday of the week containing the anchor date
     const dayOfWeek = anchor.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days, else go to Monday
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     anchor.setDate(anchor.getDate() + diffToMonday);
 
     const weeks = [];
@@ -181,20 +181,17 @@ export default function TrainingPage() {
         const dayDate = new Date(weekStart);
         dayDate.setDate(weekStart.getDate() + dayIndex);
         
-        // Format date as YYYY-MM-DD for comparison
         const dateStr = dayDate.toISOString().slice(0, 10);
 
-        // Find the actual day data by exact date match
         const sourceDay = data.weekPlan.days.find((d) => {
           return d.dayDate.slice(0, 10) === dateStr;
         });
 
-        // If no exact match, create an empty day
         if (!sourceDay) {
           return {
             id: `empty-${dateStr}`,
             dayDate: dateStr,
-            weekday: (dayIndex + 1) % 7 || 7, // 1=Monday, 7=Sunday
+            weekday: (dayIndex + 1) % 7 || 7,
             title: 'Descanso',
             description: null,
             targetIF: null,
@@ -299,7 +296,6 @@ export default function TrainingPage() {
     setGoalToDelete(null);
   };
 
-  // Helper to check if a date is before today
   const isBeforeToday = (date: Date): boolean => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -384,91 +380,282 @@ export default function TrainingPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {visibleWeeks.map((week) => (
+          {visibleWeeks.map((week) => {
+            // Calculate weekly planned totals (all 7 days)
+            const weeklyPlannedTSS = week.days.reduce((sum, day) => sum + (day.plannedMetrics?.tss ?? 0), 0);
+            const weeklyPlannedIF = week.days.reduce((sum, day) => sum + (day.plannedMetrics?.ifValue ?? 0), 0) / 7;
+            const weeklyPlannedDuration = week.days.reduce((sum, day) => sum + (day.plannedMetrics?.durationMin ?? 0), 0);
+            
+            // Calculate weekly actual totals (all activities in the week)
+            const weeklyActualTSS = week.days.reduce((sum, day) => 
+              sum + day.actualActivities.reduce((actSum, act) => actSum + (act.tss ?? 0), 0), 0
+            );
+            const weeklyActualIF = week.days.reduce((sum, day) => 
+              sum + (day.actualActivities.length > 0 
+                ? day.actualActivities.reduce((actSum, act) => actSum + (act.ifValue ?? 0), 0) / day.actualActivities.length 
+                : 0), 0
+            ) / 7;
+            const weeklyActualDuration = week.days.reduce((sum, day) => 
+              sum + day.actualActivities.reduce((actSum, act) => actSum + (act.movingTimeMin ?? 0), 0), 0
+            );
+            
+            // Calculate completion percentage
+            const weeklyCompletionPercent = weeklyPlannedTSS > 0 
+              ? Math.round((weeklyActualTSS / weeklyPlannedTSS) * 100) 
+              : 0;
+            
+            // Determine label and tone based on completion percentage
+            let weeklyLabel = 'Completado';
+            let weeklyTone = 'emerald';
+            
+            if (weeklyCompletionPercent === 0) {
+              weeklyLabel = 'No Realizado';
+              weeklyTone = 'red';
+            } else if (weeklyCompletionPercent < 70) {
+              weeklyLabel = 'Insuficiente';
+              weeklyTone = 'red';
+            } else if (weeklyCompletionPercent >= 70 && weeklyCompletionPercent < 90) {
+              weeklyLabel = 'Corto';
+              weeklyTone = 'amber';
+            } else if (weeklyCompletionPercent >= 90 && weeklyCompletionPercent < 110) {
+              weeklyLabel = 'Perfecto';
+              weeklyTone = 'green';
+            } else if (weeklyCompletionPercent >= 110 && weeklyCompletionPercent < 125) {
+              weeklyLabel = 'Fatiga';
+              weeklyTone = 'orange';
+            } else if (weeklyCompletionPercent >= 125) {
+              weeklyLabel = 'Sobreentrenamiento';
+              weeklyTone = 'red';
+            }
+            
+            return (
             <div key={week.label + week.weekStart.toISOString()} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center gap-4 flex-wrap">
                 <div className="text-sm font-semibold text-white">{week.label}</div>
                 <div className="text-xs text-zinc-500">
                   {week.weekStart.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} - {new Date(week.weekStart.getFullYear(), week.weekStart.getMonth(), week.weekStart.getDate() + 6).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
                 </div>
+                
+                {/* Weekly Objective Card */}
+                <div className="ml-auto rounded-xl border border-zinc-700 bg-zinc-900/50 p-3 min-w-[100px]">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-2 text-center">Objetivo Semanal</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">TSS</span>
+                      <span className="font-semibold text-white">{weeklyPlannedTSS > 0 ? Math.round(weeklyPlannedTSS) : '--'}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">IF</span>
+                      <span className="font-semibold text-white">{weeklyPlannedIF > 0 ? weeklyPlannedIF.toFixed(2) : '--'}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">T</span>
+                      <span className="font-semibold text-white">{weeklyPlannedDuration > 0 ? weeklyPlannedDuration : '--'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Weekly Progress Card */}
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 min-w-[100px]">
+                  <div className="text-[10px] uppercase tracking-wide text-emerald-400/80 mb-2 text-center">Realizado</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">TSS</span>
+                      <span className="font-semibold text-white">{weeklyActualTSS > 0 ? Math.round(weeklyActualTSS) : '--'}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">IF</span>
+                      <span className="font-semibold text-white">{weeklyActualIF > 0 ? weeklyActualIF.toFixed(2) : '--'}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">T</span>
+                      <span className="font-semibold text-white">{weeklyActualDuration > 0 ? weeklyActualDuration : '--'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Weekly Evaluation Card */}
+                <div className={`rounded-xl border p-3 min-w-[120px] flex flex-col items-center justify-center ${
+                  weeklyTone === 'red'
+                    ? 'border-red-500/30 bg-red-500/10'
+                    : weeklyTone === 'amber'
+                      ? 'border-amber-500/30 bg-amber-500/10'
+                      : weeklyTone === 'orange'
+                        ? 'border-orange-500/30 bg-orange-500/10'
+                        : 'border-emerald-500/30 bg-emerald-500/10'
+                }`}>
+                  <ResultLabel label={weeklyLabel} tone={weeklyTone} />
+                  <div className="mt-1 text-lg font-bold text-white">{weeklyCompletionPercent}%</div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 xl:grid-cols-7 gap-3">
-                {week.days.map((day, dayIndex) => {
-                  const isPastDay = isBeforeToday(day.syntheticDate);
-                  const plannedTSS = day.plannedMetrics?.tss ?? 0;
-                  const plannedIF = day.plannedMetrics?.ifValue ?? 0;
-                  const plannedDuration = day.plannedMetrics?.durationMin ?? 0;
-                  
-                  // For past days with no activity, calculate delta as negative planned values
-                  const showMissedDay = isPastDay && day.actualActivities.length === 0 && plannedTSS > 0;
-                  
-                  return (
-                    <div key={day.syntheticId} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3 min-h-[240px]">
-                      <div className="mb-3 flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs uppercase tracking-wide text-zinc-500">{weekdayLabels[dayIndex]}</div>
-                          <div className="text-sm font-semibold text-white">{day.syntheticDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</div>
-                        </div>
+              
+              {/* Table Layout: 4 rows x 7 columns */}
+              <div className="space-y-3">
+                {/* Row 1: Headers */}
+                <div className="grid grid-cols-7 gap-3">
+                  {week.days.map((day, dayIndex) => (
+                    <div key={`header-${day.syntheticId}`} className="text-center">
+                      <div className="text-xs uppercase tracking-wide text-zinc-500">{weekdayLabels[dayIndex]}</div>
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="text-sm font-semibold text-white">{day.syntheticDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</div>
                         <WeatherInline weather={weatherByDate[day.syntheticDate.toISOString().slice(0, 10)]} />
                       </div>
-                      <div className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 mb-3">
-                        <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Objetivo</div>
-                        <div className="text-sm font-semibold text-white">{day.title}</div>
-                        <div className="mt-1 text-xs text-zinc-400">{day.description}</div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                          <MetricValueCard label="IF" value={day.plannedMetrics?.ifValue ?? '--'} />
-                          <MetricValueCard label="TSS" value={day.plannedMetrics?.tss ?? '--'} />
-                          <MetricValueCard label="T" value={day.plannedMetrics?.durationLabel ?? '--'} />
-                        </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Row 2: Objetivo cards */}
+                <div className="grid grid-cols-7 gap-3">
+                  {week.days.map((day) => (
+                    <div key={`obj-${day.syntheticId}`} className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 h-[160px] flex flex-col">
+                      <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Objetivo</div>
+                      <div className="text-sm font-semibold text-white line-clamp-2">{day.title}</div>
+                      <div className="mt-1 text-xs text-zinc-400 line-clamp-1">{day.description}</div>
+                      <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
+                        <MetricValueCard label="TSS" value={day.plannedMetrics?.tss ? Math.round(day.plannedMetrics.tss) : '--'} />
+                        <MetricValueCard label="IF" value={day.plannedMetrics?.ifValue ?? '--'} />
+                        <MetricValueCard label="T" value={day.plannedMetrics?.durationMin ?? '--'} />
                       </div>
-                      <div className="space-y-2">
+                    </div>
+                  ))}
+                </div>
+
+                {/* Row 3: Actividad/Entrenamiento Realizado cards */}
+                <div className="grid grid-cols-7 gap-3">
+                  {week.days.map((day) => {
+                    const isPastDay = isBeforeToday(day.syntheticDate);
+                    const plannedTSS = day.plannedMetrics?.tss ?? 0;
+                    const showMissedDay = isPastDay && day.actualActivities.length === 0 && plannedTSS > 0;
+                    
+                    // Calculate totals for display
+                    const totalTSS = day.actualActivities.reduce((sum, act) => sum + (act.tss ?? 0), 0);
+                    const totalIF = day.actualActivities.length > 0 
+                      ? day.actualActivities.reduce((sum, act) => sum + (act.ifValue ?? 0), 0) / day.actualActivities.length 
+                      : 0;
+                    const totalDuration = day.actualActivities.reduce((sum, act) => sum + (act.movingTimeMin ?? 0), 0);
+                    
+                    return (
+                      <div key={`act-${day.syntheticId}`} className="h-[160px]">
                         {day.actualActivities.length === 0 ? (
                           showMissedDay ? (
-                            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
-                              <div className="text-[11px] uppercase tracking-wide text-red-400/80 mb-2">No completado</div>
-                              <div className="text-xs text-zinc-400 mb-2">Sesión no realizada</div>
-                              <div className="grid grid-cols-3 gap-2 text-xs">
-                                <MetricValueCard label="Δ IF" value={formatDelta(-plannedIF)} dark />
-                                <MetricValueCard label="Δ TSS" value={formatDelta(-plannedTSS)} dark />
-                                <MetricValueCard label="Δ T" value={formatMinutesDelta(-plannedDuration)} dark />
+                            <div className="rounded-xl border border-zinc-600 bg-zinc-800/50 p-3 h-full flex flex-col">
+                              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">No completado</div>
+                              <div className="text-xs text-zinc-500 mb-2">Sesión no realizada</div>
+                              <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
+                                <MetricValueCard label="TSS" value={0} dark />
+                                <MetricValueCard label="IF" value={0} dark />
+                                <MetricValueCard label="T" value={0} dark />
                               </div>
                             </div>
                           ) : (
-                            <div className="rounded-xl border border-dashed border-zinc-700 p-3 text-xs text-zinc-500">Sin actividad registrada</div>
+                            <div className="rounded-xl border border-dashed border-zinc-700 p-3 h-full flex items-center justify-center text-xs text-zinc-500">
+                              Sin actividad
+                            </div>
                           )
-                        ) : day.actualActivities.map((activity) => (
-                          <div key={`${day.syntheticId}-${activity.id}`} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                            <div className="text-[11px] uppercase tracking-wide text-emerald-400/80 mb-2">Actividad registrada</div>
-                            <div className="text-sm font-medium text-white">{activity.name}</div>
-                            <div className="mt-1 text-xs text-zinc-300">{activity.distanceKm} km · {activity.durationLabel}</div>
-                            <div className="text-xs text-emerald-300">{activity.elevationM} m · {activity.averagePower ? `${Math.round(activity.averagePower)} W` : 'sin potencia'}</div>
-                            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                              <MetricValueCard label="IF" value={activity.ifValue ?? '--'} dark />
-                              <MetricValueCard label="TSS" value={activity.tss ?? '--'} dark />
-                              <MetricValueCard label="T" value={activity.durationLabel} dark />
+                        ) : (
+                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 h-full flex flex-col">
+                            <div className="text-[11px] uppercase tracking-wide text-emerald-400/80 mb-2">Actividad</div>
+                            <div className="text-sm font-medium text-white line-clamp-1">
+                              {day.actualActivities.length === 1 ? day.actualActivities[0].name : `${day.actualActivities.length} actividades`}
                             </div>
-                          </div>
-                        ))}
-
-                        {day.completion && (
-                          <div className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
-                            <div className="mb-2 flex items-center justify-center">
-                              <ResultLabel label={day.completion.label} tone={day.completion.tone} />
+                            <div className="mt-1 text-xs text-zinc-300">
+                              {day.actualActivities.reduce((sum, act) => sum + parseFloat(String(act.distanceKm || 0)), 0).toFixed(1)} km
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-xs">
-                              <MetricValueCard label="Δ TSS" value={formatDelta(day.completion.tssGap)} dark />
-                              <MetricValueCard label="Δ IF" value={formatDelta(day.completion.ifGap)} dark />
-                              <MetricValueCard label="Δ T" value={formatMinutesDelta(day.completion.durationGapMin)} dark />
+                            <div className="text-xs text-emerald-300">
+                              {day.actualActivities.reduce((sum, act) => sum + (act.elevationM || 0), 0)} m
+                            </div>
+                            <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
+                              <MetricValueCard label="TSS" value={totalTSS > 0 ? Math.round(totalTSS) : '--'} dark />
+                              <MetricValueCard label="IF" value={totalIF || '--'} dark />
+                              <MetricValueCard label="T" value={totalDuration > 0 ? totalDuration : '--'} dark />
                             </div>
                           </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                {/* Row 4: Resultado cards */}
+                <div className="grid grid-cols-7 gap-3">
+                  {week.days.map((day) => {
+                    const isPastDay = isBeforeToday(day.syntheticDate);
+                    const plannedTSS = day.plannedMetrics?.tss ?? 0;
+                    const plannedIF = day.plannedMetrics?.ifValue ?? 0;
+                    const plannedDuration = day.plannedMetrics?.durationMin ?? 0;
+                    const showMissedDay = isPastDay && day.actualActivities.length === 0 && plannedTSS > 0;
+                    
+                    // Get actual values from activity (sum if multiple)
+                    const actualTSS = day.actualActivities.reduce((sum, act) => sum + (act.tss ?? 0), 0);
+                    const actualIF = day.actualActivities.length > 0 
+                      ? day.actualActivities.reduce((sum, act) => sum + (act.ifValue ?? 0), 0) / day.actualActivities.length 
+                      : 0;
+                    const actualDuration = day.actualActivities.reduce((sum, act) => sum + (act.movingTimeMin ?? 0), 0);
+                    
+                    // Calculate deltas: actual - planned (for internal use, not displayed)
+                    const tssGap = showMissedDay ? -plannedTSS : actualTSS - plannedTSS;
+                    const ifGap = showMissedDay ? -plannedIF : actualIF - plannedIF;
+                    const durationGapMin = showMissedDay ? -plannedDuration : actualDuration - plannedDuration;
+                    
+                    // Calculate completion percentage based on TSS
+                    const completionPercent = plannedTSS > 0 ? Math.round((actualTSS / plannedTSS) * 100) : 0;
+                    
+                    // Determine label and tone based on completion percentage
+                    let resultLabel = 'Completado';
+                    let resultTone = 'emerald';
+                    
+                    if (showMissedDay || actualTSS === 0) {
+                      resultLabel = 'No Realizado';
+                      resultTone = 'red';
+                    } else if (completionPercent < 70) {
+                      resultLabel = 'Insuficiente';
+                      resultTone = 'red';
+                    } else if (completionPercent >= 70 && completionPercent < 90) {
+                      resultLabel = 'Corto';
+                      resultTone = 'amber';
+                    } else if (completionPercent >= 90 && completionPercent < 110) {
+                      resultLabel = 'Perfecto';
+                      resultTone = 'green';
+                    } else if (completionPercent >= 110 && completionPercent < 125) {
+                      resultLabel = 'Fatiga';
+                      resultTone = 'orange';
+                    } else if (completionPercent >= 125) {
+                      resultLabel = 'Sobreentrenamiento';
+                      resultTone = 'red';
+                    }
+                    
+                    const hasData = showMissedDay || day.actualActivities.length > 0;
+                    
+                    return (
+                      <div key={`res-${day.syntheticId}`} className="h-[80px]">
+                        {hasData ? (
+                          <div className={`rounded-xl border p-3 h-full flex items-center justify-center ${
+                            resultTone === 'red'
+                              ? 'border-red-500/30 bg-red-500/10'
+                              : resultTone === 'amber'
+                                ? 'border-amber-500/30 bg-amber-500/10'
+                                : resultTone === 'orange'
+                                  ? 'border-orange-500/30 bg-orange-500/10'
+                                  : 'border-emerald-500/30 bg-emerald-500/10'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <ResultLabel label={resultLabel} tone={resultTone} />
+                              <span className="text-sm font-semibold text-white">{completionPercent}%</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-zinc-800 p-3 h-full flex items-center justify-center text-xs text-zinc-600">
+                            --
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -506,10 +693,12 @@ export default function TrainingPage() {
 }
 
 function MetricValueCard({ label, value, dark = false }: { label: string; value: string | number; dark?: boolean }) {
-  const valueStr = String(value);
+  // Show "--" for 0, null, undefined, or empty values (except when value is explicitly "0")
+  const displayValue = value === 0 || value === '0' || value === null || value === undefined || value === '' 
+    ? '--' 
+    : String(value);
   const labelStr = String(label);
   
-  // Calculate dynamic font sizes - more aggressive scaling for single line
   const getLabelSize = (text: string): string => {
     const len = text.length;
     if (len <= 2) return 'text-[11px]';
@@ -536,25 +725,13 @@ function MetricValueCard({ label, value, dark = false }: { label: string; value:
         {label}
       </div>
       <div 
-        className={`${getValueSize(valueStr)} font-semibold text-white leading-none truncate`}
+        className={`${getValueSize(displayValue)} font-semibold text-white leading-none truncate`}
         style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
       >
-        {value}
+        {displayValue}
       </div>
     </div>
   );
-}
-
-function formatDelta(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) return '--';
-  const rounded = Math.round(value * 10) / 10;
-  return rounded > 0 ? `+${rounded}` : `${rounded}`;
-}
-
-function formatMinutesDelta(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) return '--';
-  const rounded = Math.round(value);
-  return rounded > 0 ? `+${rounded}m` : `${rounded}m`;
 }
 
 function ResultLabel({ label, tone }: { label: string; tone: string }) {
