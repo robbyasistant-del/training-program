@@ -72,6 +72,7 @@ interface TrainingDay {
     averagePower?: number | null;
     tss?: number | null;
     ifValue?: number | null;
+    source?: string;
   }>;
 }
 
@@ -132,6 +133,27 @@ export default function TrainingPage() {
   const [editingDay, setEditingDay] = useState<TrainingDay | null>(null);
   const [savingDay, setSavingDay] = useState(false);
   const [dayModalOpen, setDayModalOpen] = useState(false);
+  
+  // Activity form state
+  const [activityForm, setActivityForm] = useState({
+    id: '',
+    name: '',
+    type: 'RIDE',
+    startDate: '',
+    distance: '', // km
+    movingTime: '', // minutes
+    totalElevationGain: '', // meters
+    averagePower: '',
+    maxPower: '',
+    normalizedPower: '',
+    tss: '',
+    ifValue: '',
+    description: '',
+  });
+  const [editingActivity, setEditingActivity] = useState<any>(null);
+  const [savingActivity, setSavingActivity] = useState(false);
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  
   const [weatherByDate, setWeatherByDate] = useState<Record<string, WeatherDay>>({});
 
   const loadData = async () => {
@@ -373,6 +395,106 @@ export default function TrainingPage() {
     await fetch(`/api/training/days?id=${editingDay.id}`, { method: 'DELETE' });
     await loadData();
     closeDayModal();
+  };
+
+  // Activity management functions
+  const openActivityModal = (dayDate: string, activity?: any) => {
+    if (activity && activity.id) {
+      setEditingActivity(activity);
+      setActivityForm({
+        id: activity.id,
+        name: activity.name || '',
+        type: activity.type || 'RIDE',
+        startDate: activity.startDate ? activity.startDate.slice(0, 10) : dayDate,
+        distance: activity.distance ? (activity.distance / 1000).toString() : '',
+        movingTime: activity.movingTime ? Math.round(activity.movingTime / 60).toString() : '',
+        totalElevationGain: activity.totalElevationGain?.toString() || '',
+        averagePower: activity.averagePower?.toString() || '',
+        maxPower: activity.maxPower?.toString() || '',
+        normalizedPower: activity.normalizedPower?.toString() || '',
+        tss: activity.tss?.toString() || '',
+        ifValue: activity.ifValue?.toString() || '',
+        description: activity.description || '',
+      });
+    } else {
+      setEditingActivity(null);
+      setActivityForm({
+        id: '',
+        name: '',
+        type: 'RIDE',
+        startDate: dayDate,
+        distance: '',
+        movingTime: '',
+        totalElevationGain: '',
+        averagePower: '',
+        maxPower: '',
+        normalizedPower: '',
+        tss: '',
+        ifValue: '',
+        description: '',
+      });
+    }
+    setActivityModalOpen(true);
+  };
+
+  const closeActivityModal = () => {
+    setActivityModalOpen(false);
+    setEditingActivity(null);
+    setActivityForm({
+      id: '',
+      name: '',
+      type: 'RIDE',
+      startDate: '',
+      distance: '',
+      movingTime: '',
+      totalElevationGain: '',
+      averagePower: '',
+      maxPower: '',
+      normalizedPower: '',
+      tss: '',
+      ifValue: '',
+      description: '',
+    });
+  };
+
+  const handleActivitySave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingActivity(true);
+
+    const url = editingActivity 
+      ? `/api/activities/manual/${editingActivity.id}`
+      : '/api/activities/manual';
+    const method = editingActivity ? 'PATCH' : 'POST';
+
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: activityForm.name,
+        type: activityForm.type,
+        startDate: activityForm.startDate,
+        distance: activityForm.distance ? Number(activityForm.distance) : null,
+        movingTime: activityForm.movingTime ? Number(activityForm.movingTime) : null,
+        totalElevationGain: activityForm.totalElevationGain ? Number(activityForm.totalElevationGain) : null,
+        averagePower: activityForm.averagePower ? Number(activityForm.averagePower) : null,
+        maxPower: activityForm.maxPower ? Number(activityForm.maxPower) : null,
+        normalizedPower: activityForm.normalizedPower ? Number(activityForm.normalizedPower) : null,
+        tss: activityForm.tss ? Number(activityForm.tss) : null,
+        ifValue: activityForm.ifValue ? Number(activityForm.ifValue) : null,
+        description: activityForm.description,
+      }),
+    });
+
+    await loadData();
+    setSavingActivity(false);
+    closeActivityModal();
+  };
+
+  const handleActivityDelete = async () => {
+    if (!editingActivity || !editingActivity.id) return;
+    await fetch(`/api/activities/manual/${editingActivity.id}`, { method: 'DELETE' });
+    await loadData();
+    closeActivityModal();
   };
 
   const isBeforeToday = (date: Date): boolean => {
@@ -630,10 +752,6 @@ export default function TrainingPage() {
                 {/* Row 3: Actividad/Entrenamiento Realizado cards */}
                 <div className="grid grid-cols-7 gap-3">
                   {week.days.map((day) => {
-                    const isPastDay = isBeforeToday(day.syntheticDate);
-                    const plannedTSS = day.plannedMetrics?.tss ?? 0;
-                    const showMissedDay = isPastDay && day.actualActivities.length === 0 && plannedTSS > 0;
-                    
                     // Calculate totals for display
                     const totalTSS = day.actualActivities.reduce((sum, act) => sum + (act.tss ?? 0), 0);
                     const totalIF = day.actualActivities.length > 0 
@@ -644,28 +762,60 @@ export default function TrainingPage() {
                     return (
                       <div key={`act-${day.syntheticId}`} className="h-[160px]">
                         {day.actualActivities.length === 0 ? (
-                          showMissedDay ? (
-                            <div className="rounded-xl border border-zinc-600 bg-zinc-800/50 p-3 h-full flex flex-col">
-                              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">No completado</div>
-                              <div className="text-xs text-zinc-500 mb-2">Sesión no realizada</div>
-                              <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
-                                <MetricValueCard label="TSS" value={0} dark />
-                                <MetricValueCard label="IF" value={0} dark />
-                                <MetricValueCard label="T" value={0} dark />
-                              </div>
+                          // SIN ACTIVIDAD - Siempre muestra ficha vacía con botón de añadir
+                          <div className="rounded-xl border border-dashed border-zinc-700 p-3 h-full flex flex-col items-center justify-center text-xs text-zinc-500 group hover:border-zinc-600 transition-colors">
+                            <span>Sin actividad</span>
+                            <button
+                              onClick={() => openActivityModal(day.dayDate.slice(0, 10))}
+                              className="mt-2 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-500/30"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>Añadir</span>
+                            </button>
+                          </div>
+                        ) : day.actualActivities.length === 1 ? (
+                          // UNA SOLA ACTIVIDAD - Con iconos de editar/borrar si es MANUAL
+                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 h-full flex flex-col relative group">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="text-[11px] uppercase tracking-wide text-emerald-400/80">Actividad</div>
+                              {day.actualActivities[0].source === 'MANUAL' && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => openActivityModal(day.dayDate.slice(0, 10), day.actualActivities[0])}
+                                    className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700"
+                                    title="Editar actividad"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm('¿Seguro que quieres borrar esta actividad?')) {
+                                        openActivityModal(day.dayDate.slice(0, 10), day.actualActivities[0]);
+                                        setTimeout(() => handleActivityDelete(), 100);
+                                      }
+                                    }}
+                                    className="p-1 rounded bg-zinc-800 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                                    title="Borrar actividad"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <div className="rounded-xl border border-dashed border-zinc-700 p-3 h-full flex items-center justify-center text-xs text-zinc-500">
-                              Sin actividad
+                            <div className="text-sm font-medium text-white line-clamp-1">{day.actualActivities[0].name}</div>
+                            <div className="mt-1 text-xs text-zinc-300">{day.actualActivities[0].distanceKm} km</div>
+                            <div className="text-xs text-emerald-300">{day.actualActivities[0].elevationM} m</div>
+                            <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
+                              <MetricValueCard label="TSS" value={day.actualActivities[0].tss ?? '--'} dark />
+                              <MetricValueCard label="IF" value={day.actualActivities[0].ifValue ?? '--'} dark />
+                              <MetricValueCard label="T" value={day.actualActivities[0].durationLabel} dark />
                             </div>
-                          )
+                          </div>
                         ) : (
+                          // MÚLTIPLES ACTIVIDADES
                           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 h-full flex flex-col">
-                            <div className="text-[11px] uppercase tracking-wide text-emerald-400/80 mb-2">Actividad</div>
+                            <div className="text-[11px] uppercase tracking-wide text-emerald-400/80 mb-2">{day.actualActivities.length} actividades</div>
                             <div className="text-sm font-medium text-white line-clamp-1">
-                              {day.actualActivities.length === 1 ? day.actualActivities[0].name : `${day.actualActivities.length} actividades`}
-                            </div>
-                            <div className="mt-1 text-xs text-zinc-300">
                               {day.actualActivities.reduce((sum, act) => sum + parseFloat(String(act.distanceKm || 0)), 0).toFixed(1)} km
                             </div>
                             <div className="text-xs text-emerald-300">
@@ -686,11 +836,9 @@ export default function TrainingPage() {
                 {/* Row 4: Resultado cards */}
                 <div className="grid grid-cols-7 gap-3">
                   {week.days.map((day) => {
-                    const isPastDay = isBeforeToday(day.syntheticDate);
                     const plannedTSS = day.plannedMetrics?.tss ?? 0;
                     const plannedIF = day.plannedMetrics?.ifValue ?? 0;
                     const plannedDuration = day.plannedMetrics?.durationMin ?? 0;
-                    const showMissedDay = isPastDay && day.actualActivities.length === 0 && plannedTSS > 0;
                     
                     // Get actual values from activity (sum if multiple)
                     const actualTSS = day.actualActivities.reduce((sum, act) => sum + (act.tss ?? 0), 0);
@@ -699,11 +847,6 @@ export default function TrainingPage() {
                       : 0;
                     const actualDuration = day.actualActivities.reduce((sum, act) => sum + (act.movingTimeMin ?? 0), 0);
                     
-                    // Calculate deltas: actual - planned (for internal use, not displayed)
-                    const tssGap = showMissedDay ? -plannedTSS : actualTSS - plannedTSS;
-                    const ifGap = showMissedDay ? -plannedIF : actualIF - plannedIF;
-                    const durationGapMin = showMissedDay ? -plannedDuration : actualDuration - plannedDuration;
-                    
                     // Calculate completion percentage based on TSS
                     const completionPercent = plannedTSS > 0 ? Math.round((actualTSS / plannedTSS) * 100) : 0;
                     
@@ -711,7 +854,7 @@ export default function TrainingPage() {
                     let resultLabel = 'Completado';
                     let resultTone = 'emerald';
                     
-                    if (showMissedDay || actualTSS === 0) {
+                    if (actualTSS === 0) {
                       resultLabel = 'No Realizado';
                       resultTone = 'red';
                     } else if (completionPercent < 70) {
@@ -731,7 +874,7 @@ export default function TrainingPage() {
                       resultTone = 'red';
                     }
                     
-                    const hasData = showMissedDay || day.actualActivities.length > 0;
+                    const hasData = day.actualActivities.length > 0;
                     
                     return (
                       <div key={`res-${day.syntheticId}`} className="h-[80px]">
@@ -863,6 +1006,132 @@ export default function TrainingPage() {
                   className="rounded-xl bg-[#FC4C02] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e14602] disabled:opacity-60"
                 >
                   {editingDay ? 'Guardar cambios' : 'Crear día'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Activity Edit/Create Modal */}
+      {activityModalOpen && (
+        <Modal onClose={closeActivityModal} title={editingActivity ? 'Editar actividad' : 'Añadir actividad'}>
+          <form onSubmit={handleActivitySave} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input 
+              type="date" 
+              value={activityForm.startDate} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, startDate: e.target.value }))}
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+              required
+            />
+            <input 
+              value={activityForm.name} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, name: e.target.value }))}
+              placeholder="Nombre de la actividad"
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+              required
+            />
+            <select
+              value={activityForm.type}
+              onChange={(e) => setActivityForm((p) => ({ ...p, type: e.target.value }))}
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            >
+              <option value="RIDE">Ciclismo</option>
+              <option value="RUN">Running</option>
+              <option value="SWIM">Natación</option>
+              <option value="VIRTUAL_RIDE">Ciclismo Virtual</option>
+              <option value="WORKOUT">Entrenamiento</option>
+              <option value="HIKE">Senderismo</option>
+              <option value="WALK">Caminata</option>
+            </select>
+            <input 
+              type="number"
+              step="0.1"
+              value={activityForm.distance} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, distance: e.target.value }))}
+              placeholder="Distancia (km)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={activityForm.movingTime} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, movingTime: e.target.value }))}
+              placeholder="Tiempo (minutos)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={activityForm.totalElevationGain} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, totalElevationGain: e.target.value }))}
+              placeholder="Desnivel (m)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={activityForm.tss} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, tss: e.target.value }))}
+              placeholder="TSS"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              step="0.01"
+              value={activityForm.ifValue} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, ifValue: e.target.value }))}
+              placeholder="IF (ej: 0.75)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={activityForm.averagePower} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, averagePower: e.target.value }))}
+              placeholder="Potencia media (W)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={activityForm.maxPower} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, maxPower: e.target.value }))}
+              placeholder="Potencia máx (W)"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input 
+              type="number"
+              value={activityForm.normalizedPower} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, normalizedPower: e.target.value }))}
+              placeholder="Potencia normalizada (W)"
+              className="md:col-span-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <textarea 
+              value={activityForm.description} 
+              onChange={(e) => setActivityForm((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Notas / descripción..."
+              className="md:col-span-2 min-h-[60px] rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <div className="md:col-span-2 flex justify-between gap-2 pt-2">
+              {editingActivity && (
+                <button 
+                  type="button" 
+                  onClick={handleActivityDelete}
+                  className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-semibold text-red-400 hover:bg-red-600/30"
+                >
+                  Borrar
+                </button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button 
+                  type="button" 
+                  onClick={closeActivityModal}
+                  className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-700"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={savingActivity}
+                  className="rounded-xl bg-[#FC4C02] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e14602] disabled:opacity-60"
+                >
+                  {editingActivity ? 'Guardar cambios' : 'Crear actividad'}
                 </button>
               </div>
             </div>

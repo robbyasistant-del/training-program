@@ -87,9 +87,10 @@ model Athlete {
 
 model Activity {
   id                String       @id @default(dbgenerated("gen_random_uuid()"))
-  stravaActivityId  BigInt       @unique
+  stravaActivityId  BigInt?      @unique
   athleteId         String
   type              ActivityType
+  source            String       @default("STRAVA") // STRAVA | MANUAL
   name              String
   distance          Float? // metros
   movingTime        Int? // segundos
@@ -102,7 +103,10 @@ model Activity {
   maxHeartrate      Float?
   averagePower      Float?
   maxPower          Float?
+  normalizedPower   Float?       // Para actividades manuales
   tss               Float?
+  ifValue           Float?       // Intensity Factor para manuales
+  description       String?      // Descripción para manuales
   rawJson           Json?        // ← Campo clave: almacena el JSON completo de Strava
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -114,6 +118,7 @@ model Activity {
   @@index([athleteId])
   @@index([startDate])
   @@index([type])
+  @@index([source])
 }
 
 model TrainingProgram {

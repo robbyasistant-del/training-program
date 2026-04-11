@@ -327,6 +327,7 @@ export async function getTrainingDashboardData(athleteId: string) {
             averagePower: activity.averagePower,
             tss: round1(activity.tss ?? calculatedTss),
             ifValue: round1(inferredIf),
+            source: activity.source,
           };
         });
 
