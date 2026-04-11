@@ -430,62 +430,70 @@ export default function TrainingPage() {
             
             return (
             <div key={week.label + week.weekStart.toISOString()} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-              <div className="mb-4 flex items-center gap-4 flex-wrap">
-                <div className="text-sm font-semibold text-white">{week.label}</div>
-                <div className="text-xs text-zinc-500">
-                  {week.weekStart.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} - {new Date(week.weekStart.getFullYear(), week.weekStart.getMonth(), week.weekStart.getDate() + 6).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+              <div className="mb-4 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-semibold text-white">{week.label}</div>
+                  <div className="text-xs text-zinc-500">
+                    {week.weekStart.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} - {new Date(week.weekStart.getFullYear(), week.weekStart.getMonth(), week.weekStart.getDate() + 6).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                  </div>
                 </div>
-                
-                {/* Weekly Objective Card */}
-                <div className="ml-auto rounded-xl border border-zinc-700 bg-zinc-900/50 p-3 min-w-[100px]">
+
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  {/* Weekly Objective Card */}
+                  <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-3 min-w-[200px]">
                   <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-2 text-center">Objetivo Semanal</div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-zinc-400">TSS</span>
-                      <span className="font-semibold text-white">{weeklyPlannedTSS > 0 ? Math.round(weeklyPlannedTSS) : '--'}</span>
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="text-center">
+                      <div className="text-[10px] text-zinc-400 uppercase">TSS</div>
+                      <div className="text-sm font-semibold text-white">{weeklyPlannedTSS > 0 ? Math.round(weeklyPlannedTSS) : '--'}</div>
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-zinc-400">IF</span>
-                      <span className="font-semibold text-white">{weeklyPlannedIF > 0 ? weeklyPlannedIF.toFixed(2) : '--'}</span>
+                    <div className="w-px h-8 bg-zinc-700"></div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-zinc-400 uppercase">IF</div>
+                      <div className="text-sm font-semibold text-white">{weeklyPlannedIF > 0 ? weeklyPlannedIF.toFixed(2) : '--'}</div>
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-zinc-400">T</span>
-                      <span className="font-semibold text-white">{weeklyPlannedDuration > 0 ? weeklyPlannedDuration : '--'}</span>
+                    <div className="w-px h-8 bg-zinc-700"></div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-zinc-400 uppercase">T</div>
+                      <div className="text-sm font-semibold text-white">{weeklyPlannedDuration > 0 ? weeklyPlannedDuration : '--'}</div>
                     </div>
                   </div>
                 </div>
                 
                 {/* Weekly Progress Card */}
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 min-w-[100px]">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 min-w-[200px]">
                   <div className="text-[10px] uppercase tracking-wide text-emerald-400/80 mb-2 text-center">Realizado</div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-zinc-400">TSS</span>
-                      <span className="font-semibold text-white">{weeklyActualTSS > 0 ? Math.round(weeklyActualTSS) : '--'}</span>
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="text-center">
+                      <div className="text-[10px] text-zinc-400 uppercase">TSS</div>
+                      <div className="text-sm font-semibold text-white">{weeklyActualTSS > 0 ? Math.round(weeklyActualTSS) : '--'}</div>
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-zinc-400">IF</span>
-                      <span className="font-semibold text-white">{weeklyActualIF > 0 ? weeklyActualIF.toFixed(2) : '--'}</span>
+                    <div className="w-px h-8 bg-emerald-500/30"></div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-zinc-400 uppercase">IF</div>
+                      <div className="text-sm font-semibold text-white">{weeklyActualIF > 0 ? weeklyActualIF.toFixed(2) : '--'}</div>
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-zinc-400">T</span>
-                      <span className="font-semibold text-white">{weeklyActualDuration > 0 ? weeklyActualDuration : '--'}</span>
+                    <div className="w-px h-8 bg-emerald-500/30"></div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-zinc-400 uppercase">T</div>
+                      <div className="text-sm font-semibold text-white">{weeklyActualDuration > 0 ? weeklyActualDuration : '--'}</div>
                     </div>
                   </div>
                 </div>
                 
-                {/* Weekly Evaluation Card */}
-                <div className={`rounded-xl border p-3 min-w-[120px] flex flex-col items-center justify-center ${
-                  weeklyTone === 'red'
-                    ? 'border-red-500/30 bg-red-500/10'
-                    : weeklyTone === 'amber'
-                      ? 'border-amber-500/30 bg-amber-500/10'
-                      : weeklyTone === 'orange'
-                        ? 'border-orange-500/30 bg-orange-500/10'
-                        : 'border-emerald-500/30 bg-emerald-500/10'
-                }`}>
-                  <ResultLabel label={weeklyLabel} tone={weeklyTone} />
-                  <div className="mt-1 text-lg font-bold text-white">{weeklyCompletionPercent}%</div>
+                  {/* Weekly Evaluation Card */}
+                  <div className={`rounded-xl border p-3 min-w-[120px] flex flex-col items-center justify-center ${
+                    weeklyTone === 'red'
+                      ? 'border-red-500/30 bg-red-500/10'
+                      : weeklyTone === 'amber'
+                        ? 'border-amber-500/30 bg-amber-500/10'
+                        : weeklyTone === 'orange'
+                          ? 'border-orange-500/30 bg-orange-500/10'
+                          : 'border-emerald-500/30 bg-emerald-500/10'
+                  }`}>
+                    <ResultLabel label={weeklyLabel} tone={weeklyTone} />
+                    <div className="mt-1 text-lg font-bold text-white">{weeklyCompletionPercent}%</div>
+                  </div>
                 </div>
               </div>
               
