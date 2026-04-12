@@ -903,6 +903,7 @@ export default function TrainingPage() {
                     const actualDuration = day.actualActivities.reduce((sum, act) => sum + (act.movingTimeMin ?? 0), 0);
                     
                     const hasData = day.actualActivities.length > 0;
+                    const hasObjective = plannedTSS > 0 || plannedIF > 0 || plannedDuration > 0;
 
                     // Calculate completion percentage based on TSS
                     const completionPercent = plannedTSS > 0
@@ -911,15 +912,21 @@ export default function TrainingPage() {
                         ? Infinity
                         : 0;
                     
-                    // Determine label and tone based on completion percentage
+                    // Determine label and tone based on objective and activity
                     let resultLabel = 'Completado';
                     let resultTone = 'emerald';
                     
-                    if (!hasData) {
-                      resultLabel = 'No Realizado';
-                      resultTone = 'red';
-                    } else if (plannedTSS <= 0 && hasData) {
+                    if (!hasObjective && !hasData) {
+                      // Sin objetivo y sin actividad = descanso correcto
+                      resultLabel = 'Perfecto';
+                      resultTone = 'green';
+                    } else if (!hasObjective && hasData) {
+                      // Sin objetivo pero con actividad = sobreentrenamiento
                       resultLabel = 'Sobreentrenamiento';
+                      resultTone = 'red';
+                    } else if (hasObjective && !hasData) {
+                      // Con objetivo pero sin actividad = no realizado
+                      resultLabel = 'No Realizado';
                       resultTone = 'red';
                     } else if (completionPercent < 70) {
                       resultLabel = 'Insuficiente';
@@ -940,26 +947,22 @@ export default function TrainingPage() {
                     
                     return (
                       <div key={`res-${day.syntheticId}`} className="h-[80px]">
-                        {hasData ? (
-                          <div className={`rounded-xl border p-3 h-full flex items-center justify-center ${
-                            resultTone === 'red'
-                              ? 'border-red-500/30 bg-red-500/10'
-                              : resultTone === 'amber'
-                                ? 'border-amber-500/30 bg-amber-500/10'
-                                : resultTone === 'orange'
-                                  ? 'border-orange-500/30 bg-orange-500/10'
-                                  : 'border-emerald-500/30 bg-emerald-500/10'
-                          }`}>
-                            <div className="flex items-center gap-2">
-                              <ResultLabel label={resultLabel} tone={resultTone} />
+                        <div className={`rounded-xl border p-3 h-full flex items-center justify-center ${
+                          resultTone === 'red'
+                            ? 'border-red-500/30 bg-red-500/10'
+                            : resultTone === 'amber'
+                              ? 'border-amber-500/30 bg-amber-500/10'
+                              : resultTone === 'orange'
+                                ? 'border-orange-500/30 bg-orange-500/10'
+                                : 'border-emerald-500/30 bg-emerald-500/10'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <ResultLabel label={resultLabel} tone={resultTone} />
+                            {hasObjective || hasData ? (
                               <span className="text-sm font-semibold text-white">{completionPercent === Infinity ? 'INF' : `${completionPercent}%`}</span>
-                            </div>
+                            ) : null}
                           </div>
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-zinc-800 p-3 h-full flex items-center justify-center text-xs text-zinc-600">
-                            --
-                          </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
