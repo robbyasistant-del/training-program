@@ -122,7 +122,6 @@ export async function POST(request: NextRequest) {
       });
       console.log('[POST /api/training/days] Updated day:', savedDay.id, 'title:', savedDay.title, 'dayDate:', savedDay.dayDate, 'plan:', savedDay.planId);
     } else {
-    } else {
       const weekday = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
       savedDay = await prisma.weeklyTrainingDay.create({
         data: {
