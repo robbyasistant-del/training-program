@@ -28,9 +28,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and date required' }, { status: 400 });
     }
 
+    // Generate a unique negative ID for manual activities
+    // Negative IDs indicate manual activities (Strava uses positive IDs)
+    const manualActivityId = BigInt(-Date.now());
+
     const activity = await prisma.activity.create({
       data: {
         athlete: { connect: { id: athleteId } },
+        stravaActivityId: manualActivityId,
         name,
         type: type as ActivityType,
         source: 'MANUAL',
