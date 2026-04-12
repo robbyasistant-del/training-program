@@ -108,22 +108,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         );
       }
     } else if (source === 'auto') {
-      // Modo auto: obtener de Strava y complementar con BD (incluyendo manuales)
+      // Modo auto: SIEMPRE obtener de BD primero (incluye manuales y Strava)
+      // Luego complementar con Strava si hay actividades más recientes
+      activities = await getActivitiesFromDB(athleteId, limit);
+      dataSource = 'db';
+      
+      // Intentar también Strava para tener datos frescos
       try {
         const stravaActivities = await getRecentActivities(athleteId, limit, true);
-        const dbActivities = await getActivitiesFromDB(athleteId, limit);
         
-        // Combinar: primero Strava, luego manuales de BD que no estén en Strava
-        const stravaIds = new Set(stravaActivities.map(a => a.id));
-        const manualActivities = dbActivities.filter(a => !stravaIds.has(a.id));
+        // Fusionar: Strava tiene prioridad si existe el mismo ID
+        const activityMap = new Map(activities.map(a => [a.id, a]));
+        for (const stravaAct of stravaActivities) {
+          activityMap.set(stravaAct.id, stravaAct);
+        }
         
-        activities = [...stravaActivities, ...manualActivities].slice(0, limit);
-        dataSource = 'strava';
+        activities = Array.from(activityMap.values())
+          .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+          .slice(0, limit);
+        
+        if (stravaActivities.length > 0) {
+          dataSource = 'strava';
+        }
       } catch (stravaError) {
-        // Si falla Strava, usar solo BD
-        console.warn('[Activities Recent] Strava API failed, falling back to DB:', stravaError);
-        activities = await getActivitiesFromDB(athleteId, limit);
-        dataSource = 'db';
+        // Si falla Strava, ya tenemos las de BD
+        console.warn('[Activities Recent] Strava API failed, using DB only:', stravaError);
       }
     } else {
       // Source = 'db', obtener solo de base de datos

@@ -6,7 +6,11 @@ export async function GET(request: NextRequest) {
     const athleteId = request.cookies.get('athlete_id')?.value;
     if (!athleteId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const data = await getTrainingDashboardData(athleteId);
+    // Get month offset from query params (for calendar navigation)
+    const { searchParams } = new URL(request.url);
+    const monthOffset = parseInt(searchParams.get('monthOffset') || '0', 10);
+
+    const data = await getTrainingDashboardData(athleteId, monthOffset);
     return NextResponse.json(data);
   } catch (error) {
     console.error('Training dashboard error:', error);

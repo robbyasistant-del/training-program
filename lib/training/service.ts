@@ -236,7 +236,7 @@ function buildCompletionAssessment(planned: { tss: number | null; ifValue: numbe
   };
 }
 
-export async function getTrainingDashboardData(athleteId: string) {
+export async function getTrainingDashboardData(athleteId: string, monthOffset: number = 0) {
   const { athlete, conversation, weekPlan } = await ensureTrainingMvpData(athleteId);
 
   const goals = await prisma.trainingGoal.findMany({
@@ -244,27 +244,36 @@ export async function getTrainingDashboardData(athleteId: string) {
     orderBy: { eventDate: 'asc' },
   });
 
-  const weekStart = weekPlan.weekStart;
-  const monthStart = new Date(weekStart);
-  monthStart.setDate(1); // Primer día del mes
-  monthStart.setHours(0, 0, 0, 0);
-  const monthEnd = new Date(monthStart);
-  monthEnd.setMonth(monthEnd.getMonth() + 2); // Dos meses después para cubrir navegación
-  monthEnd.setHours(0, 0, 0, 0);
+  // Calculate visible date range based on monthOffset (4 weeks)
+  const baseDate = new Date(weekPlan.weekStart);
+  baseDate.setMonth(baseDate.getMonth() + monthOffset);
+  
+  // Find the Monday of the week containing the anchor date
+  const dayOfWeek = baseDate.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const visibleStart = new Date(baseDate);
+  visibleStart.setDate(baseDate.getDate() + diffToMonday);
+  visibleStart.setHours(0, 0, 0, 0);
+  
+  // End is 4 weeks later (28 days)
+  const visibleEnd = new Date(visibleStart);
+  visibleEnd.setDate(visibleStart.getDate() + 28);
+  visibleEnd.setHours(0, 0, 0, 0);
 
   const activities = await prisma.activity.findMany({
     where: {
       athleteId,
       type: { in: ['RIDE', 'VIRTUAL_RIDE'] },
-      startDate: { gte: monthStart, lt: monthEnd },
+      startDate: { gte: visibleStart, lt: visibleEnd },
     },
     orderBy: { startDate: 'asc' },
   });
 
   const ftp = athlete.athleteRecord?.estimatedFTP || null;
+  const weekStart = weekPlan.weekStart;
   const plannedTSS = weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0);
   
-  // Calcular stats solo para la semana actual (no todo el mes cargado)
+  // Calcular stats solo para la semana actual (no todo el rango visble)
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 7);
   const weekActivities = activities.filter(a => {

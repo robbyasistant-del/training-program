@@ -159,7 +159,7 @@ export default function TrainingPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/training/dashboard');
+    const response = await fetch(`/api/training/dashboard?monthOffset=${monthOffset}`);
     
     // Handle 401 - athlete not found or unauthorized
     if (response.status === 401) {
@@ -175,7 +175,7 @@ export default function TrainingPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [monthOffset]);
 
   useEffect(() => {
     async function loadWeather() {
