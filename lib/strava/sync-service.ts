@@ -117,6 +117,9 @@ export async function syncActivitiesWithProgress(
                 ...((mappedActivity as any).maxPower !== undefined && {
                   maxPower: (mappedActivity as any).maxPower,
                 }),
+                ...((mappedActivity as any).rawJson !== undefined && {
+                  rawJson: (mappedActivity as any).rawJson,
+                }),
               },
             });
 

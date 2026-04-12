@@ -86,6 +86,7 @@ export function mapStravaActivity(activity: StravaActivity) {
     maxSpeed: number;
     averageHeartrate?: number | null;
     maxHeartrate?: number | null;
+    rawJson?: unknown;
   } = {
     stravaActivityId: BigInt(activity.id),
     name: activity.name,
@@ -124,6 +125,8 @@ export function mapStravaActivity(activity: StravaActivity) {
   } else {
     (mapped as any).maxPower = null;
   }
+
+  (mapped as any).rawJson = activity as any;
 
   return mapped;
 }

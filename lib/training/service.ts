@@ -320,6 +320,11 @@ export async function getTrainingDashboardData(athleteId: string) {
                 ...(activity.maxHeartrate != null ? { maxHeartrate: activity.maxHeartrate } : {}),
               }).tss
             : 0;
+          const effectiveTss = activity.tss ?? calculatedTss;
+          const tssDerivedIf = effectiveTss && activity.movingTime
+            ? Math.sqrt((effectiveTss * 3600) / (activity.movingTime * 100))
+            : null;
+          const resolvedIf = activity.ifValue ?? inferredIf ?? tssDerivedIf;
 
           return {
             id: activity.id,
@@ -329,8 +334,8 @@ export async function getTrainingDashboardData(athleteId: string) {
             movingTimeMin: durationMin,
             durationLabel: formatMinutesLabel(durationMin),
             averagePower: activity.averagePower,
-            tss: round1(activity.tss ?? calculatedTss),
-            ifValue: round1(activity.ifValue ?? inferredIf),
+            tss: round1(effectiveTss),
+            ifValue: round1(resolvedIf),
             source: activity.source,
           };
         });
