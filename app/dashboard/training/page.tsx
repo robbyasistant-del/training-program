@@ -206,13 +206,16 @@ export default function TrainingPage() {
   const visibleWeeks = useMemo(() => {
     if (!data) return [];
 
-    const anchor = new Date(data.weekPlan.weekStart);
-    anchor.setMonth(anchor.getMonth() + monthOffset);
+    // Use current date as base, same as backend
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const baseDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
     
-    // Find the Monday of the week containing the anchor date
-    const dayOfWeek = anchor.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    anchor.setDate(anchor.getDate() + diffToMonday);
+    // Find the Monday of the first week of the month (or last Monday of previous month)
+    const firstDayOfMonth = baseDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const diffToMonday = firstDayOfMonth === 0 ? -6 : 1 - firstDayOfMonth;
+    const anchor = new Date(baseDate);
+    anchor.setDate(baseDate.getDate() + diffToMonday);
 
     const weeks = [];
     for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
@@ -265,11 +268,10 @@ export default function TrainingPage() {
   }, [data, monthOffset]);
 
   const currentMonthLabel = useMemo(() => {
-    if (!data) return '';
-    const base = new Date(data.weekPlan.weekStart);
-    base.setMonth(base.getMonth() + monthOffset);
+    const today = new Date();
+    const base = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
     return base.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  }, [data, monthOffset]);
+  }, [monthOffset]);
 
   const openCreateModal = () => {
     setGoalForm(emptyGoalForm);

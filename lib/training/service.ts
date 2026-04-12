@@ -245,17 +245,19 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
   });
 
   // Calculate visible date range based on monthOffset (4 weeks)
-  const baseDate = new Date(weekPlan.weekStart);
-  baseDate.setMonth(baseDate.getMonth() + monthOffset);
+  // Use current date as base, not weekPlan.weekStart
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const baseDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
   
-  // Find the Monday of the week containing the anchor date
-  const dayOfWeek = baseDate.getDay();
-  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  // Find the Monday of the first week of the month (or last Monday of previous month)
+  const firstDayOfMonth = baseDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const diffToMonday = firstDayOfMonth === 0 ? -6 : 1 - firstDayOfMonth;
   const visibleStart = new Date(baseDate);
   visibleStart.setDate(baseDate.getDate() + diffToMonday);
   visibleStart.setHours(0, 0, 0, 0);
   
-  // End is 4 weeks later (28 days)
+  // End is 4 weeks later (28 days) to cover the 4 weeks displayed
   const visibleEnd = new Date(visibleStart);
   visibleEnd.setDate(visibleStart.getDate() + 28);
   visibleEnd.setHours(0, 0, 0, 0);
