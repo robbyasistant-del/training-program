@@ -66,9 +66,15 @@ export async function POST(request: NextRequest) {
     let plan = await prisma.weeklyTrainingPlan.findFirst({
       where: {
         athleteId,
-        weekStart,
+        weekStart: {
+          gte: new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() - 2)),
+          lt: new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + 2)),
+        },
       },
     });
+    
+    console.log('[POST /api/training/days] Searching for plan with weekStart around:', weekStart.toISOString());
+    console.log('[POST /api/training/days] Found plan:', plan ? `${plan.id} (weekStart: ${plan.weekStart})` : 'none');
 
     if (!plan) {
       plan = await prisma.weeklyTrainingPlan.create({
@@ -84,22 +90,29 @@ export async function POST(request: NextRequest) {
       console.log('[POST /api/training/days] Found existing plan:', plan.id, 'weekStart:', plan.weekStart);
     }
 
-    // Check if day already exists
+    // Check if day already exists anywhere for this athlete (search in ±1 day range)
     const existingDay = await prisma.weeklyTrainingDay.findFirst({
       where: {
-        planId: plan.id,
-        dayDate: date,
+        dayDate: {
+          gte: new Date(Date.UTC(year, month - 1, day - 1)),
+          lt: new Date(Date.UTC(year, month - 1, day + 1)),
+        },
+        plan: { athleteId },
       },
     });
+    
+    console.log('[POST /api/training/days] Searching for day with date around:', date.toISOString());
+    console.log('[POST /api/training/days] Existing day:', existingDay ? `${existingDay.id} (dayDate: ${existingDay.dayDate}, plan: ${existingDay.planId})` : 'none');
     
     console.log('[POST /api/training/days] Existing day:', existingDay ? existingDay.id : 'none');
 
     let savedDay;
     if (existingDay) {
+      // Use the existing day and update it
       savedDay = await prisma.weeklyTrainingDay.update({
         where: { id: existingDay.id },
         data: {
-          title: title || existingDay.title,
+          title: title !== undefined ? title : existingDay.title,
           description: description !== undefined ? description : existingDay.description,
           targetIF: targetIF !== undefined ? targetIF : existingDay.targetIF,
           targetTSS: targetTSS !== undefined ? targetTSS : existingDay.targetTSS,
@@ -107,7 +120,8 @@ export async function POST(request: NextRequest) {
           workoutType: workoutType !== undefined ? workoutType : existingDay.workoutType,
         },
       });
-      console.log('[POST /api/training/days] Updated day:', savedDay.id, 'title:', savedDay.title, 'dayDate:', savedDay.dayDate);
+      console.log('[POST /api/training/days] Updated day:', savedDay.id, 'title:', savedDay.title, 'dayDate:', savedDay.dayDate, 'plan:', savedDay.planId);
+    } else {
     } else {
       const weekday = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
       savedDay = await prisma.weeklyTrainingDay.create({
