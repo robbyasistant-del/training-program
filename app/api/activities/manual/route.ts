@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     const activity = await prisma.activity.create({
       data: {
-        athleteId,
+        athlete: { connect: { id: athleteId } },
         stravaActivityId: null, // Manual activities don't have Strava ID
         name,
         type: type as ActivityType,
