@@ -358,10 +358,14 @@ export async function syncAthleteRecords(athleteId: string): Promise<void> {
 
     // Calcular PRs de distancia
     const distances = [
-      { dist: 5000, field: 'pr5k' },
-      { dist: 10000, field: 'pr10k' },
-      { dist: 21097.5, field: 'prHalfMarathon' },
-      { dist: 42195, field: 'prMarathon' },
+      { dist: 5000, field: 'pr5km' },
+      { dist: 10000, field: 'pr10km' },
+      { dist: 20000, field: 'pr20km' },
+      { dist: 30000, field: 'pr30km' },
+      { dist: 50000, field: 'pr50km' },
+      { dist: 75000, field: 'pr75km' },
+      { dist: 90000, field: 'pr90km' },
+      { dist: 100000, field: 'pr100km' },
     ] as const;
 
     const prData: Record<string, number | null> = {};
@@ -441,10 +445,14 @@ export async function syncAthleteRecords(athleteId: string): Promise<void> {
       where: { athleteId },
       create: {
         athleteId,
-        pr5k: prData['pr5k'],
-        pr10k: prData['pr10k'],
-        prHalfMarathon: prData['prHalfMarathon'],
-        prMarathon: prData['prMarathon'],
+        pr5km: prData['pr5km'],
+        pr10km: prData['pr10km'],
+        pr20km: prData['pr20km'],
+        pr30km: prData['pr30km'],
+        pr50km: prData['pr50km'],
+        pr75km: prData['pr75km'],
+        pr90km: prData['pr90km'],
+        pr100km: prData['pr100km'],
         power5s: prData['power5s'],
         power15s: prData['power15s'],
         power30s: prData['power30s'],
@@ -468,10 +476,14 @@ export async function syncAthleteRecords(athleteId: string): Promise<void> {
         totalActivities,
       },
       update: {
-        pr5k: prData['pr5k'],
-        pr10k: prData['pr10k'],
-        prHalfMarathon: prData['prHalfMarathon'],
-        prMarathon: prData['prMarathon'],
+        pr5km: prData['pr5km'],
+        pr10km: prData['pr10km'],
+        pr20km: prData['pr20km'],
+        pr30km: prData['pr30km'],
+        pr50km: prData['pr50km'],
+        pr75km: prData['pr75km'],
+        pr90km: prData['pr90km'],
+        pr100km: prData['pr100km'],
         power5s: prData['power5s'],
         power15s: prData['power15s'],
         power30s: prData['power30s'],
@@ -496,9 +508,10 @@ export async function syncAthleteRecords(athleteId: string): Promise<void> {
       },
     });
 
-    console.log('[Sync] Athlete records synced successfully');
+    console.log('[Sync] Athlete records synced successfully for athlete:', athleteId);
+    console.log('[Sync] PRs found:', Object.entries(prData).filter(([k, v]) => v !== null).map(([k, v]) => `${k}: ${v}s`).join(', '));
   } catch (error) {
-    console.error('[Sync] Error syncing athlete records:', error);
+    console.error('[Sync] Error syncing athlete records for athlete:', athleteId, error);
     // No lanzamos el error para no interrumpir la sincronización principal
   }
 }
