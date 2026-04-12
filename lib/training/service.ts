@@ -29,7 +29,11 @@ export async function ensureTrainingMvpData(athleteId: string) {
     where: { id: athleteId },
     include: { athleteRecord: true },
   });
-  if (!athlete) throw new Error('Athlete not found');
+  if (!athlete) {
+    const error = new Error('Athlete not found');
+    (error as any).code = 'ATHLETE_NOT_FOUND';
+    throw error;
+  }
 
   const goalCount = await prisma.trainingGoal.count({ where: { athleteId } });
   if (goalCount === 0) {

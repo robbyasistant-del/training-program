@@ -159,6 +159,14 @@ export default function TrainingPage() {
   const loadData = async () => {
     setLoading(true);
     const response = await fetch('/api/training/dashboard');
+    
+    // Handle 401 - athlete not found or unauthorized
+    if (response.status === 401) {
+      // Redirect to login page
+      window.location.href = '/login';
+      return;
+    }
+    
     const payload = await response.json();
     setData(payload);
     setLoading(false);
