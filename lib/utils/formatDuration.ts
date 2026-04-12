@@ -1,4 +1,4 @@
-export function formatDurationMinutes(minutes: number | string | null | undefined): string {
+function formatDurationMinutes(minutes: number | string | null | undefined): string {
   if (minutes === null || minutes === undefined || minutes === '' || minutes === 0) {
     return '--';
   }
@@ -17,3 +17,5 @@ export function formatDurationMinutes(minutes: number | string | null | undefine
   }
   return `${mins}m`;
 }
+
+export { formatDurationMinutes };

@@ -93,26 +93,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let dataSource: 'strava' | 'db' = 'db';
 
     // Estrategia de obtención de datos
-    if (source === 'strava' || source === 'auto') {
+    if (source === 'strava') {
       try {
-        // Intentar obtener de Strava API
+        // Solo Strava (sin fallback)
         activities = await getRecentActivities(athleteId, limit, true);
         dataSource = 'strava';
       } catch (stravaError) {
+        return NextResponse.json(
+          {
+            error: 'Strava API no disponible',
+            details: stravaError instanceof Error ? stravaError.message : 'Unknown error',
+          },
+          { status: 503 }
+        );
+      }
+    } else if (source === 'auto') {
+      // Modo auto: obtener de Strava y complementar con BD (incluyendo manuales)
+      try {
+        const stravaActivities = await getRecentActivities(athleteId, limit, true);
+        const dbActivities = await getActivitiesFromDB(athleteId, limit);
+        
+        // Combinar: primero Strava, luego manuales de BD que no estén en Strava
+        const stravaIds = new Set(stravaActivities.map(a => a.id));
+        const manualActivities = dbActivities.filter(a => !stravaIds.has(a.id));
+        
+        activities = [...stravaActivities, ...manualActivities].slice(0, limit);
+        dataSource = 'strava';
+      } catch (stravaError) {
+        // Si falla Strava, usar solo BD
         console.warn('[Activities Recent] Strava API failed, falling back to DB:', stravaError);
-
-        if (source === 'strava') {
-          // Si explícitamente pidieron Strava, devolver error
-          return NextResponse.json(
-            {
-              error: 'Strava API no disponible',
-              details: stravaError instanceof Error ? stravaError.message : 'Unknown error',
-            },
-            { status: 503 }
-          );
-        }
-
-        // Fallback a DB
         activities = await getActivitiesFromDB(athleteId, limit);
         dataSource = 'db';
       }

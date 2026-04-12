@@ -245,22 +245,35 @@ export async function getTrainingDashboardData(athleteId: string) {
   });
 
   const weekStart = weekPlan.weekStart;
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
+  const monthStart = new Date(weekStart);
+  monthStart.setDate(1); // Primer día del mes
+  monthStart.setHours(0, 0, 0, 0);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setMonth(monthEnd.getMonth() + 2); // Dos meses después para cubrir navegación
+  monthEnd.setHours(0, 0, 0, 0);
 
   const activities = await prisma.activity.findMany({
     where: {
       athleteId,
       type: { in: ['RIDE', 'VIRTUAL_RIDE'] },
-      startDate: { gte: weekStart, lt: weekEnd },
+      startDate: { gte: monthStart, lt: monthEnd },
     },
     orderBy: { startDate: 'asc' },
   });
 
   const ftp = athlete.athleteRecord?.estimatedFTP || null;
   const plannedTSS = weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0);
-  const completedDistanceKm = activities.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000;
-  const completedElevation = activities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
+  
+  // Calcular stats solo para la semana actual (no todo el mes cargado)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7);
+  const weekActivities = activities.filter(a => {
+    const d = new Date(a.startDate);
+    return d >= weekStart && d < weekEnd;
+  });
+  
+  const completedDistanceKm = weekActivities.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000;
+  const completedElevation = weekActivities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
 
   return {
     athlete: {
@@ -282,7 +295,7 @@ export async function getTrainingDashboardData(athleteId: string) {
       focus: weekPlan.focus,
       weekStart: weekPlan.weekStart,
       plannedTSS,
-      completedActivities: activities.length,
+      completedActivities: weekActivities.length, 
       completedDistanceKm,
       completedElevation,
       days: weekPlan.days.map((day) => {
