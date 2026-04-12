@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PersonalTrainerWidget } from '@/components/training/PersonalTrainerWidget';
+import { formatDurationMinutes } from '@/lib/utils/formatDuration';
 
 interface Goal {
   id: string;
@@ -708,7 +709,7 @@ export default function TrainingPage() {
                     <div className="w-px h-8 bg-zinc-700"></div>
                     <div className="text-center">
                       <div className="text-[10px] text-zinc-400 uppercase">T</div>
-                      <div className="text-sm font-semibold text-white">{weeklyPlannedDuration > 0 ? weeklyPlannedDuration : '--'}</div>
+                      <div className="text-sm font-semibold text-white">{formatDurationMinutes(weeklyPlannedDuration)}</div>
                     </div>
                   </div>
                 </div>
@@ -729,7 +730,7 @@ export default function TrainingPage() {
                     <div className="w-px h-8 bg-emerald-500/30"></div>
                     <div className="text-center">
                       <div className="text-[10px] text-zinc-400 uppercase">T</div>
-                      <div className="text-sm font-semibold text-white">{weeklyActualDuration > 0 ? weeklyActualDuration : '--'}</div>
+                      <div className="text-sm font-semibold text-white">{formatDurationMinutes(weeklyActualDuration)}</div>
                     </div>
                   </div>
                 </div>
@@ -860,7 +861,7 @@ export default function TrainingPage() {
                             <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
                               <MetricValueCard label="TSS" value={day.actualActivities[0].tss ?? '--'} dark />
                               <MetricValueCard label="IF" value={day.actualActivities[0].ifValue ?? '--'} dark />
-                              <MetricValueCard label="T" value={day.actualActivities[0].durationLabel} dark />
+                              <MetricValueCard label="T" value={day.actualActivities[0].movingTimeMin ?? '--'} dark />
                             </div>
                           </div>
                         ) : (
@@ -1197,26 +1198,11 @@ export default function TrainingPage() {
 }
 
 function MetricValueCard({ label, value, dark = false }: { label: string; value: string | number; dark?: boolean }) {
-  // Helper to format duration for "T" label
-  const formatDurationValue = (val: string | number): string => {
-    if (label !== 'T') return String(val);
-    
-    const numVal = typeof val === 'string' ? parseInt(val, 10) : val;
-    if (isNaN(numVal) || numVal <= 0) return '--';
-    
-    const hours = Math.floor(numVal / 60);
-    const minutes = numVal % 60;
-    
-    if (hours > 0) {
-      return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-    }
-    return `${minutes}m`;
-  };
-
-  // Show "--" for 0, null, undefined, or empty values (except when value is explicitly "0")
-  const displayValue = value === 0 || value === '0' || value === null || value === undefined || value === '' 
-    ? '--' 
-    : formatDurationValue(value);
+  // Format the display value
+  const displayValue = label === 'T' 
+    ? formatDurationMinutes(value)
+    : (value === 0 || value === '0' || value === null || value === undefined || value === '' ? '--' : String(value));
+  
   const labelStr = String(label);
   
   const getLabelSize = (text: string): string => {
