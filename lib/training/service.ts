@@ -166,9 +166,9 @@ function buildCompletionAssessment(planned: { tss: number | null; ifValue: numbe
 
   if (!(planned.tss || planned.ifValue || planned.durationMin) && actual) {
     return {
-      label: 'No planificado',
-      tone: 'blue',
-      score: 70,
+      label: 'Sobreentrenamiento',
+      tone: 'red',
+      score: Infinity,
       summary: 'Hay actividad registrada en un día sin objetivo planificado.',
       tssGap: actual.tss,
       ifGap: actual.ifValue,

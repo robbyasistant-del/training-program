@@ -866,7 +866,7 @@ export default function TrainingPage() {
                             <div className="mt-1 text-xs text-zinc-300">{day.actualActivities[0].distanceKm} km</div>
                             <div className="text-xs text-emerald-300">{day.actualActivities[0].elevationM} m</div>
                             <div className="mt-auto grid grid-cols-3 gap-2 text-xs">
-                              <MetricValueCard label="TSS" value={day.actualActivities[0].tss ?? '--'} dark />
+                              <MetricValueCard label="TSS" value={day.actualActivities[0].tss != null ? Math.round(day.actualActivities[0].tss) : '--'} dark />
                               <MetricValueCard label="IF" value={day.actualActivities[0].ifValue ?? '--'} dark />
                               <MetricValueCard label="T" value={day.actualActivities[0].movingTimeMin ?? '--'} dark />
                             </div>
@@ -907,15 +907,24 @@ export default function TrainingPage() {
                       : 0;
                     const actualDuration = day.actualActivities.reduce((sum, act) => sum + (act.movingTimeMin ?? 0), 0);
                     
+                    const hasData = day.actualActivities.length > 0;
+
                     // Calculate completion percentage based on TSS
-                    const completionPercent = plannedTSS > 0 ? Math.round((actualTSS / plannedTSS) * 100) : 0;
+                    const completionPercent = plannedTSS > 0
+                      ? Math.round((actualTSS / plannedTSS) * 100)
+                      : hasData
+                        ? Infinity
+                        : 0;
                     
                     // Determine label and tone based on completion percentage
                     let resultLabel = 'Completado';
                     let resultTone = 'emerald';
                     
-                    if (actualTSS === 0) {
+                    if (!hasData) {
                       resultLabel = 'No Realizado';
+                      resultTone = 'red';
+                    } else if (plannedTSS <= 0 && hasData) {
+                      resultLabel = 'Sobreentrenamiento';
                       resultTone = 'red';
                     } else if (completionPercent < 70) {
                       resultLabel = 'Insuficiente';
@@ -934,8 +943,6 @@ export default function TrainingPage() {
                       resultTone = 'red';
                     }
                     
-                    const hasData = day.actualActivities.length > 0;
-                    
                     return (
                       <div key={`res-${day.syntheticId}`} className="h-[80px]">
                         {hasData ? (
@@ -950,7 +957,7 @@ export default function TrainingPage() {
                           }`}>
                             <div className="flex items-center gap-2">
                               <ResultLabel label={resultLabel} tone={resultTone} />
-                              <span className="text-sm font-semibold text-white">{completionPercent}%</span>
+                              <span className="text-sm font-semibold text-white">{completionPercent === Infinity ? 'INF' : `${completionPercent}%`}</span>
                             </div>
                           </div>
                         ) : (
