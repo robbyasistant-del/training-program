@@ -13,6 +13,8 @@ import {
   Zap,
   Heart,
   TrendingUp,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +33,12 @@ interface ActivityCardProps {
   variant?: 'default' | 'compact' | 'detailed';
   /** Callback al hacer click en la tarjeta */
   onClick?: ((activity: ActivityType) => void) | undefined;
+  /** Callback al editar una actividad manual */
+  onEdit?: ((activity: ActivityType) => void) | undefined;
+  /** Callback al borrar una actividad manual */
+  onDelete?: ((activity: ActivityType) => void) | undefined;
+  /** Mostrar acciones para actividades manuales */
+  showManualActions?: boolean;
   /** Clase CSS adicional */
   className?: string;
 }
@@ -174,6 +182,9 @@ export function ActivityCard({
   index = 0,
   variant = 'default',
   onClick,
+  onEdit,
+  onDelete,
+  showManualActions = false,
   className = '',
 }: ActivityCardProps) {
   const Icon = activityIcons[activity.type] || Activity;
@@ -341,7 +352,7 @@ export function ActivityCard({
   // Variante default (estilo Strava estándar)
   return (
     <div
-      className={`animate-in fade-in slide-in-from-bottom-4 flex cursor-pointer items-center gap-4 rounded-lg bg-zinc-800/50 p-3 transition-all duration-300 hover:bg-zinc-800 ${className} `}
+      className={`animate-in fade-in slide-in-from-bottom-4 group flex cursor-pointer items-center gap-4 rounded-lg bg-zinc-800/50 p-3 transition-all duration-300 hover:bg-zinc-800 ${className} `}
       style={{ animationDelay: `${index * 100}ms`, animationFillMode: 'backwards' }}
       onClick={() => onClick?.(activity)}
       role="button"
@@ -355,7 +366,14 @@ export function ActivityCard({
 
       {/* Info principal */}
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-white">{activity.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate font-medium text-white">{activity.name}</p>
+          {activity.source === 'MANUAL' && (
+            <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] px-1.5 py-0">
+              Manual
+            </Badge>
+          )}
+        </div>
         <p className="text-sm text-zinc-400">
           {formattedDate} · {label}
         </p>
@@ -366,6 +384,32 @@ export function ActivityCard({
         <p className="font-medium text-white">{formatDistance(activity.distance)}</p>
         <p className="text-sm text-zinc-400">{formatDuration(activity.duration)}</p>
       </div>
+
+      {/* Acciones para actividades manuales */}
+      {showManualActions && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit?.(activity);
+            }}
+            className="p-1.5 rounded bg-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-600"
+            title="Editar actividad"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete?.(activity);
+            }}
+            className="p-1.5 rounded bg-zinc-700 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+            title="Borrar actividad"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

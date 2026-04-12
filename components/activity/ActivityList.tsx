@@ -31,6 +31,10 @@ interface ActivityListProps {
   onRetry?: () => void;
   /** Callback al hacer click en una actividad */
   onActivityClick?: (activity: Activity) => void;
+  /** Callback al editar una actividad manual */
+  onEditActivity?: (activity: Activity) => void;
+  /** Callback al borrar una actividad manual */
+  onDeleteActivity?: (activity: Activity) => void;
   /** Título del componente */
   title?: string;
   /** Mostrar badge con conteo */
@@ -47,6 +51,8 @@ interface ActivityListProps {
   hasMore?: boolean;
   /** Indica si está cargando más (paginación) */
   isLoadingMore?: boolean;
+  /** Habilitar CRUD para actividades manuales */
+  enableManualCRUD?: boolean;
 }
 
 /**
@@ -76,6 +82,8 @@ export function ActivityList({
   cardVariant = 'default',
   onRetry,
   onActivityClick,
+  onEditActivity,
+  onDeleteActivity,
   title = 'Actividades Recientes',
   showCount = true,
   className = '',
@@ -84,6 +92,7 @@ export function ActivityList({
   onLoadMore,
   hasMore = false,
   isLoadingMore = false,
+  enableManualCRUD = false,
 }: ActivityListProps) {
   const [displayLimit, setDisplayLimit] = useState(initialLimit);
 
@@ -180,6 +189,9 @@ export function ActivityList({
               index={index}
               variant={cardVariant}
               onClick={onActivityClick}
+              onEdit={enableManualCRUD ? onEditActivity : undefined}
+              onDelete={enableManualCRUD ? onDeleteActivity : undefined}
+              showManualActions={enableManualCRUD && activity.source === 'MANUAL'}
             />
           ))}
         </div>

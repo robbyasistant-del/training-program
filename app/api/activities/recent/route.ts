@@ -192,7 +192,7 @@ async function getActivitiesFromDB(athleteId: string, limit: number): Promise<Ac
 
   return dbActivities.map((activity) => {
     const mapped: Activity = {
-      id: activity.stravaActivityId.toString(),
+      id: activity.stravaActivityId?.toString() ?? activity.id,
       name: activity.name,
       type: mapActivityType(activity.type),
       startDate: activity.startDate.toISOString(),

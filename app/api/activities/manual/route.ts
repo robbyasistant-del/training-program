@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { ActivityType } from '@prisma/client';
+import { ActivityType, Prisma } from '@prisma/client';
 
 // POST /api/activities/manual - Create a manual activity
 export async function POST(request: NextRequest) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         maxSpeed: null,
         averageHeartrate: null,
         maxHeartrate: null,
-        rawJson: null,
+        rawJson: Prisma.JsonNull,
       },
     });
 
