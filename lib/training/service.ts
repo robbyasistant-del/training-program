@@ -237,12 +237,20 @@ function buildCompletionAssessment(planned: { tss: number | null; ifValue: numbe
 }
 
 export async function getTrainingDashboardData(athleteId: string, monthOffset: number = 0) {
-  const { athlete, conversation, weekPlan } = await ensureTrainingMvpData(athleteId);
+  const { athlete, conversation, weekPlan: currentWeekPlan } = await ensureTrainingMvpData(athleteId);
 
   const goals = await prisma.trainingGoal.findMany({
     where: { athleteId },
     orderBy: { eventDate: 'asc' },
   });
+
+  // Helper to format date as YYYY-MM-DD
+  const formatDateStr = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Simple date calculation matching frontend
   const baseDate = new Date();
@@ -276,8 +284,8 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
   });
 
   const ftp = athlete.athleteRecord?.estimatedFTP || null;
-  const weekStart = weekPlan.weekStart;
-  const plannedTSS = weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0);
+  const weekStart = currentWeekPlan.weekStart;
+  const plannedTSS = currentWeekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0);
   
   // Calcular stats solo para la semana actual
   const weekEnd = new Date(weekStart);
@@ -298,14 +306,23 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
     return `${year}-${month}-${day}`;
   };
 
+  // Fetch ALL training days within the visible range (from any week plan)
+  const allPlanDays = await prisma.weeklyTrainingDay.findMany({
+    where: {
+      dayDate: { gte: visibleStart, lt: visibleEnd },
+      plan: { athleteId },
+    },
+    include: { plan: true },
+  });
+
   // Generate 28 days (4 weeks) dynamically from visibleStart
   const visibleDays = Array.from({ length: 28 }, (_, i) => {
     const dayDate = new Date(visibleStart);
     dayDate.setDate(visibleStart.getDate() + i);
     const dateStr = formatDateStr(dayDate);
     
-    // Find if there's a plan for this day
-    const planDay = weekPlan.days.find((d: any) => {
+    // Find if there's a plan for this day (from any week)
+    const planDay = allPlanDays.find((d: any) => {
       const planDateStr = d.dayDate instanceof Date 
         ? formatDateStr(d.dayDate)
         : String(d.dayDate).slice(0, 10);
@@ -353,10 +370,10 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
       messages: conversation.messages,
     },
     weekPlan: {
-      id: weekPlan.id,
-      title: weekPlan.title,
-      focus: weekPlan.focus,
-      weekStart: weekPlan.weekStart,
+      id: currentWeekPlan.id,
+      title: currentWeekPlan.title,
+      focus: currentWeekPlan.focus,
+      weekStart: currentWeekPlan.weekStart,
       plannedTSS,
       completedActivities: weekActivities.length, 
       completedDistanceKm,
