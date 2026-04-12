@@ -59,6 +59,7 @@ model Athlete {
   city         String?
   country      String?
   sex          String?  // M, F, or null
+  birthdate    DateTime? // Fecha de nacimiento
   weight       Float?   // kg
   lastSyncAt   DateTime?
   syncStatus   String   @default("never") // never | pending | running | completed | failed
