@@ -313,7 +313,7 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
       completedActivities: weekActivities.length, 
       completedDistanceKm,
       completedElevation,
-      days: weekPlan.days.map((day) => {
+      days: (weekPlan.days || [])?.map((day) => {
         // Match activities by date string (YYYY-MM-DD) to avoid timezone issues
         const dayDateStr = day.dayDate.slice(0, 10);
         const realActivities = activities.filter((activity) => {

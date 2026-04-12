@@ -197,9 +197,9 @@ export default function TrainingPage() {
   }, []);
 
   const completionRate = useMemo(() => {
-    if (!data) return 0;
+    if (!data?.weekPlan?.days) return 0;
     const totalPlanned = data.weekPlan.days.length;
-    const completed = data.weekPlan.days.filter((d) => d.actualActivities.length > 0).length;
+    const completed = data.weekPlan.days.filter((d) => d.actualActivities?.length > 0).length;
     return totalPlanned ? Math.round((completed / totalPlanned) * 100) : 0;
   }, [data]);
 
