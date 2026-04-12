@@ -330,7 +330,7 @@ export async function getTrainingDashboardData(athleteId: string) {
             durationLabel: formatMinutesLabel(durationMin),
             averagePower: activity.averagePower,
             tss: round1(activity.tss ?? calculatedTss),
-            ifValue: round1(inferredIf),
+            ifValue: round1(activity.ifValue ?? inferredIf),
             source: activity.source,
           };
         });
