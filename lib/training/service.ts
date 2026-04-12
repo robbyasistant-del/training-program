@@ -244,35 +244,28 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
     orderBy: { eventDate: 'asc' },
   });
 
-  // Helper to format date as YYYY-MM-DD
+  // Helper to format date as YYYY-MM-DD using UTC to avoid timezone issues
   const formatDateStr = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
-  // Simple date calculation matching frontend
-  const baseDate = new Date();
-  baseDate.setDate(1); // First day of current month
-  baseDate.setMonth(baseDate.getMonth() + monthOffset);
-  baseDate.setHours(0, 0, 0, 0);
+  // Simple date calculation using UTC to match backend storage
+  const now = new Date();
+  const baseDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + monthOffset, 1));
   
-  // Find Monday of that week (0=Sunday, 1=Monday)
-  const dayOfWeek = baseDate.getDay();
+  // Find Monday of that week (0=Sunday, 1=Monday) in UTC
+  const dayOfWeek = baseDate.getUTCDay();
   const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const visibleStart = new Date(baseDate);
-  visibleStart.setDate(baseDate.getDate() - daysToSubtract);
-  visibleStart.setHours(0, 0, 0, 0);
+  const visibleStart = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate() - daysToSubtract));
   
-  // Load 4 weeks (28 days) + 1 week buffer for timezone safety
-  const visibleEnd = new Date(visibleStart);
-  visibleEnd.setDate(visibleStart.getDate() + 35);
-  visibleEnd.setHours(23, 59, 59, 999);
+  // Load 4 weeks (28 days) + 1 week buffer
+  const visibleEnd = new Date(Date.UTC(visibleStart.getUTCFullYear(), visibleStart.getUTCMonth(), visibleStart.getUTCDate() + 35, 23, 59, 59, 999));
 
   // Also load activities from 1 week before for safety
-  const loadStart = new Date(visibleStart);
-  loadStart.setDate(loadStart.getDate() - 7);
+  const loadStart = new Date(Date.UTC(visibleStart.getUTCFullYear(), visibleStart.getUTCMonth(), visibleStart.getUTCDate() - 7));
 
   const activities = await prisma.activity.findMany({
     where: {
@@ -312,10 +305,9 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
   console.log('[Training Dashboard] Found', allPlanDays.length, 'plan days:');
   allPlanDays.forEach(d => console.log('  -', d.dayDate.toISOString(), ':', d.title, '(plan:', d.planId, ')'));
 
-  // Generate 28 days (4 weeks) dynamically from visibleStart
+  // Generate 28 days (4 weeks) dynamically from visibleStart (UTC)
   const visibleDays = Array.from({ length: 28 }, (_, i) => {
-    const dayDate = new Date(visibleStart);
-    dayDate.setDate(visibleStart.getDate() + i);
+    const dayDate = new Date(Date.UTC(visibleStart.getUTCFullYear(), visibleStart.getUTCMonth(), visibleStart.getUTCDate() + i));
     const dateStr = formatDateStr(dayDate);
     
     // Find if there's a plan for this day (from any week)

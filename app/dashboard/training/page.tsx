@@ -206,31 +206,26 @@ export default function TrainingPage() {
   const visibleWeeks = useMemo(() => {
     if (!data) return [];
 
-    // Simple date calculation: first day of month, then back to Monday
-    const baseDate = new Date();
-    baseDate.setDate(1); // First day of current month
-    baseDate.setMonth(baseDate.getMonth() + monthOffset);
-    baseDate.setHours(0, 0, 0, 0);
+    // Simple date calculation using UTC to match backend
+    const now = new Date();
+    const baseDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + monthOffset, 1));
     
-    // Find Monday of that week (0=Sunday, 1=Monday)
-    const dayOfWeek = baseDate.getDay();
+    // Find Monday of that week (0=Sunday, 1=Monday) in UTC
+    const dayOfWeek = baseDate.getUTCDay();
     const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const anchor = new Date(baseDate);
-    anchor.setDate(baseDate.getDate() - daysToSubtract);
+    const anchor = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate() - daysToSubtract));
 
     const weeks = [];
     for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
-      const weekStart = new Date(anchor);
-      weekStart.setDate(anchor.getDate() + weekIndex * 7);
+      const weekStart = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + weekIndex * 7));
 
       const days = Array.from({ length: 7 }).map((_, dayIndex) => {
-        const dayDate = new Date(weekStart);
-        dayDate.setDate(weekStart.getDate() + dayIndex);
+        const dayDate = new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + dayIndex));
         
-        // Format date as YYYY-MM-DD using LOCAL date (not UTC)
-        const year = dayDate.getFullYear();
-        const month = String(dayDate.getMonth() + 1).padStart(2, '0');
-        const day = String(dayDate.getDate()).padStart(2, '0');
+        // Format date as YYYY-MM-DD using UTC date
+        const year = dayDate.getUTCFullYear();
+        const month = String(dayDate.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(dayDate.getUTCDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
 
         const sourceDay = data.weekPlan.days.find((d) => {

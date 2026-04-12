@@ -50,19 +50,18 @@ export async function POST(request: NextRequest) {
     console.log('[POST /api/training/days] Received dayDate:', dayDate);
 
     // Find or create the weekly plan for this date
-    // Parse date string as local date to avoid timezone shifts
+    // Parse date string correctly as UTC midnight to avoid timezone shifts
     const [year, month, day] = dayDate.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
+    // Create UTC date: YYYY-MM-DD 00:00:00 UTC
+    const date = new Date(Date.UTC(year, month - 1, day));
     
-    console.log('[POST /api/training/days] Parsed date:', date.toISOString(), '| local:', date.toString());
+    console.log('[POST /api/training/days] Parsed date (UTC):', date.toISOString());
     
-    const dayOfWeek = date.getDay();
+    const dayOfWeek = date.getUTCDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() + diffToMonday);
-    weekStart.setHours(0, 0, 0, 0);
+    const weekStart = new Date(Date.UTC(year, month - 1, day + diffToMonday));
     
-    console.log('[POST /api/training/days] Calculated weekStart:', weekStart.toISOString());
+    console.log('[POST /api/training/days] Calculated weekStart (UTC):', weekStart.toISOString());
 
     let plan = await prisma.weeklyTrainingPlan.findFirst({
       where: {
@@ -110,7 +109,7 @@ export async function POST(request: NextRequest) {
       });
       console.log('[POST /api/training/days] Updated day:', savedDay.id, 'title:', savedDay.title, 'dayDate:', savedDay.dayDate);
     } else {
-      const weekday = date.getDay() === 0 ? 7 : date.getDay();
+      const weekday = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
       savedDay = await prisma.weeklyTrainingDay.create({
         data: {
           planId: plan.id,
