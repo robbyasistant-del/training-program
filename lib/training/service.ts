@@ -279,7 +279,7 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
   const weekStart = weekPlan.weekStart;
   const plannedTSS = weekPlan.days.reduce((sum, day) => sum + (day.targetTSS || 0), 0);
   
-  // Calcular stats solo para la semana actual (no todo el rango visble)
+  // Calcular stats solo para la semana actual
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 7);
   const weekActivities = activities.filter(a => {
@@ -289,6 +289,38 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
   
   const completedDistanceKm = weekActivities.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000;
   const completedElevation = weekActivities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
+
+  // Helper to format date as YYYY-MM-DD
+  const formatDateStr = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Generate 28 days (4 weeks) dynamically from visibleStart
+  const visibleDays = Array.from({ length: 28 }, (_, i) => {
+    const dayDate = new Date(visibleStart);
+    dayDate.setDate(visibleStart.getDate() + i);
+    const dateStr = formatDateStr(dayDate);
+    
+    // Find if there's a plan for this day
+    const planDay = weekPlan.days.find((d: any) => {
+      const planDateStr = d.dayDate instanceof Date 
+        ? formatDateStr(d.dayDate)
+        : String(d.dayDate).slice(0, 10);
+      return planDateStr === dateStr;
+    });
+
+    // Find activities for this day
+    const dayActivities = activities.filter((activity) => {
+      const actDate = new Date(activity.startDate);
+      const actDateStr = formatDateStr(actDate);
+      return actDateStr === dateStr;
+    });
+
+    return { dayDate, dateStr, planDay, dayActivities };
+  });
 
   return {
     athlete: {
@@ -313,27 +345,20 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
       completedActivities: weekActivities.length, 
       completedDistanceKm,
       completedElevation,
-      days: (weekPlan.days || []).map((day: any) => {
-        // Match activities by date string (YYYY-MM-DD) to avoid timezone issues
-        const dayDateStr = day.dayDate instanceof Date 
-          ? day.dayDate.toISOString().slice(0, 10)
-          : String(day.dayDate).slice(0, 10);
-        const realActivities = activities.filter((activity) => {
-          const actDate = new Date(activity.startDate);
-          const actYear = actDate.getFullYear();
-          const actMonth = String(actDate.getMonth() + 1).padStart(2, '0');
-          const actDay = String(actDate.getDate()).padStart(2, '0');
-          const actDateStr = `${actYear}-${actMonth}-${actDay}`;
-          return actDateStr === dayDateStr;
-        });
-        const plannedMetrics = {
-          tss: day.targetTSS ?? null,
-          ifValue: round1(day.targetIF ?? null),
-          durationMin: day.plannedDurationMin ?? null,
-          durationLabel: formatMinutesLabel(day.plannedDurationMin ?? null),
+      days: visibleDays.map(({ dayDate, dateStr, planDay, dayActivities }, index) => {
+        const plannedMetrics = planDay ? {
+          tss: planDay.targetTSS ?? null,
+          ifValue: round1(planDay.targetIF ?? null),
+          durationMin: planDay.plannedDurationMin ?? null,
+          durationLabel: formatMinutesLabel(planDay.plannedDurationMin ?? null),
+        } : {
+          tss: null,
+          ifValue: null,
+          durationMin: null,
+          durationLabel: '--',
         };
 
-        const actualActivities = realActivities.map((activity) => {
+        const actualActivities = dayActivities.map((activity) => {
           const durationMin = Math.round((activity.movingTime || 0) / 60);
           const raw = activity.rawJson && typeof activity.rawJson === 'object'
             ? (activity.rawJson as Record<string, unknown>)
@@ -388,7 +413,14 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
           : null;
 
         return {
-          ...day,
+          id: planDay?.id ?? `generated-${dateStr}`,
+          dayDate: dateStr,
+          weekday: (index % 7) + 1,
+          title: planDay?.title ?? 'Descanso',
+          description: planDay?.description ?? null,
+          targetIF: planDay?.targetIF ?? null,
+          targetTSS: planDay?.targetTSS ?? null,
+          plannedDurationMin: planDay?.plannedDurationMin ?? null,
           plannedMetrics,
           actualActivities,
           completion: buildCompletionAssessment(plannedMetrics, aggregatedActual),
