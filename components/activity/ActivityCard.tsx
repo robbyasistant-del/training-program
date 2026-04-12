@@ -285,7 +285,14 @@ export function ActivityCard({
               <Icon className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="font-semibold text-white">{activity.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white">{activity.name}</h3>
+                {activity.source === 'MANUAL' && (
+                  <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] px-1.5 py-0">
+                    Manual
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-zinc-400">{formattedDate}</p>
             </div>
           </div>

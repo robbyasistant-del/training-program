@@ -406,24 +406,68 @@ export default function TrainingPage() {
   };
 
   // Activity management functions
-  const openActivityModal = (dayDate: string, activity?: any) => {
+  const openActivityModal = async (dayDate: string, activity?: any) => {
     if (activity && activity.id) {
-      setEditingActivity(activity);
-      setActivityForm({
-        id: activity.id,
-        name: activity.name || '',
-        type: activity.type || 'RIDE',
-        startDate: activity.startDate ? activity.startDate.slice(0, 10) : dayDate,
-        distance: activity.distance ? (activity.distance / 1000).toString() : '',
-        movingTime: activity.movingTime ? Math.round(activity.movingTime / 60).toString() : '',
-        totalElevationGain: activity.totalElevationGain?.toString() || '',
-        averagePower: activity.averagePower?.toString() || '',
-        maxPower: activity.maxPower?.toString() || '',
-        normalizedPower: activity.normalizedPower?.toString() || '',
-        tss: activity.tss?.toString() || '',
-        ifValue: activity.ifValue?.toString() || '',
-        description: activity.description || '',
-      });
+      // Fetch full activity data from API to ensure all fields are loaded
+      try {
+        const response = await fetch(`/api/activities/manual/${activity.id}`);
+        if (response.ok) {
+          const fullActivity = await response.json();
+          setEditingActivity(fullActivity);
+          setActivityForm({
+            id: fullActivity.id,
+            name: fullActivity.name || '',
+            type: fullActivity.type || 'RIDE',
+            startDate: fullActivity.startDate ? fullActivity.startDate.slice(0, 10) : dayDate,
+            distance: fullActivity.distance ? (fullActivity.distance / 1000).toString() : '',
+            movingTime: fullActivity.movingTime ? Math.round(fullActivity.movingTime / 60).toString() : '',
+            totalElevationGain: fullActivity.totalElevationGain?.toString() || '',
+            averagePower: fullActivity.averagePower?.toString() || '',
+            maxPower: fullActivity.maxPower?.toString() || '',
+            normalizedPower: fullActivity.normalizedPower?.toString() || '',
+            tss: fullActivity.tss?.toString() || '',
+            ifValue: fullActivity.ifValue?.toString() || '',
+            description: fullActivity.description || '',
+          });
+        } else {
+          // Fallback to provided activity data
+          setEditingActivity(activity);
+          setActivityForm({
+            id: activity.id,
+            name: activity.name || '',
+            type: activity.type || 'RIDE',
+            startDate: activity.startDate ? activity.startDate.slice(0, 10) : dayDate,
+            distance: activity.distance ? (activity.distance / 1000).toString() : '',
+            movingTime: activity.movingTime ? Math.round(activity.movingTime / 60).toString() : '',
+            totalElevationGain: activity.totalElevationGain?.toString() || '',
+            averagePower: activity.averagePower?.toString() || '',
+            maxPower: activity.maxPower?.toString() || '',
+            normalizedPower: activity.normalizedPower?.toString() || '',
+            tss: activity.tss?.toString() || '',
+            ifValue: activity.ifValue?.toString() || '',
+            description: activity.description || '',
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching activity details:', error);
+        // Fallback to provided activity data
+        setEditingActivity(activity);
+        setActivityForm({
+          id: activity.id,
+          name: activity.name || '',
+          type: activity.type || 'RIDE',
+          startDate: activity.startDate ? activity.startDate.slice(0, 10) : dayDate,
+          distance: activity.distance ? (activity.distance / 1000).toString() : '',
+          movingTime: activity.movingTime ? Math.round(activity.movingTime / 60).toString() : '',
+          totalElevationGain: activity.totalElevationGain?.toString() || '',
+          averagePower: activity.averagePower?.toString() || '',
+          maxPower: activity.maxPower?.toString() || '',
+          normalizedPower: activity.normalizedPower?.toString() || '',
+          tss: activity.tss?.toString() || '',
+          ifValue: activity.ifValue?.toString() || '',
+          description: activity.description || '',
+        });
+      }
     } else {
       setEditingActivity(null);
       setActivityForm({

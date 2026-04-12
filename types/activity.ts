@@ -15,6 +15,7 @@ export interface Activity {
   polyline?: string;
   averageHeartrate?: number;
   maxHeartrate?: number;
+  source?: 'STRAVA' | 'MANUAL';
 }
 
 /**

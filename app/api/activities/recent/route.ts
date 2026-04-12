@@ -178,6 +178,7 @@ async function getActivitiesFromDB(athleteId: string, limit: number): Promise<Ac
       stravaActivityId: true,
       name: true,
       type: true,
+      source: true,
       startDate: true,
       movingTime: true,
       distance: true,
@@ -199,6 +200,7 @@ async function getActivitiesFromDB(athleteId: string, limit: number): Promise<Ac
       distance: activity.distance ?? 0,
       elevationGain: activity.totalElevationGain ?? 0,
       averageSpeed: activity.averageSpeed ?? 0,
+      source: (activity.source as 'STRAVA' | 'MANUAL') || 'STRAVA',
     };
 
     if (activity.maxSpeed != null) mapped.maxSpeed = activity.maxSpeed;

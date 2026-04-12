@@ -81,9 +81,16 @@ export async function syncActivitiesWithProgress(
           try {
             const mappedActivity = mapStravaActivity(activity);
 
-            // Upsert to prevent duplicates
+            // Upsert to prevent duplicates - ONLY for Strava activities (positive IDs)
+            // Skip manual activities (negative IDs) to preserve user-created data
+            const stravaId = BigInt(activity.id);
+            if (stravaId < 0) {
+              console.log(`[Sync] Skipping manual activity with negative ID: ${activity.id}`);
+              continue;
+            }
+
             await prisma.activity.upsert({
-              where: { stravaActivityId: BigInt(activity.id) },
+              where: { stravaActivityId: stravaId },
               create: {
                 ...mappedActivity,
                 athleteId,
