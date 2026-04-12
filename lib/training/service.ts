@@ -299,6 +299,8 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
   const completedElevation = weekActivities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
 
   // Fetch ALL training days within the visible range (from any week plan)
+  console.log('[Training Dashboard] Querying days between:', visibleStart.toISOString(), 'and', visibleEnd.toISOString());
+  
   const allPlanDays = await prisma.weeklyTrainingDay.findMany({
     where: {
       dayDate: { gte: visibleStart, lt: visibleEnd },
@@ -306,6 +308,9 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
     },
     include: { plan: true },
   });
+  
+  console.log('[Training Dashboard] Found', allPlanDays.length, 'plan days:');
+  allPlanDays.forEach(d => console.log('  -', d.dayDate.toISOString(), ':', d.title, '(plan:', d.planId, ')'));
 
   // Generate 28 days (4 weeks) dynamically from visibleStart
   const visibleDays = Array.from({ length: 28 }, (_, i) => {

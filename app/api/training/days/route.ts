@@ -46,13 +46,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Date required' }, { status: 400 });
     }
 
+    // DEBUG LOGGING
+    console.log('[POST /api/training/days] Received dayDate:', dayDate);
+
     // Find or create the weekly plan for this date
-    const date = new Date(dayDate);
+    // Parse date string as local date to avoid timezone shifts
+    const [year, month, day] = dayDate.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    
+    console.log('[POST /api/training/days] Parsed date:', date.toISOString(), '| local:', date.toString());
+    
     const dayOfWeek = date.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() + diffToMonday);
     weekStart.setHours(0, 0, 0, 0);
+    
+    console.log('[POST /api/training/days] Calculated weekStart:', weekStart.toISOString());
 
     let plan = await prisma.weeklyTrainingPlan.findFirst({
       where: {
@@ -70,6 +80,9 @@ export async function POST(request: NextRequest) {
           focus: '',
         },
       });
+      console.log('[POST /api/training/days] Created new plan:', plan.id, 'weekStart:', plan.weekStart);
+    } else {
+      console.log('[POST /api/training/days] Found existing plan:', plan.id, 'weekStart:', plan.weekStart);
     }
 
     // Check if day already exists
@@ -79,10 +92,12 @@ export async function POST(request: NextRequest) {
         dayDate: date,
       },
     });
+    
+    console.log('[POST /api/training/days] Existing day:', existingDay ? existingDay.id : 'none');
 
-    let day;
+    let savedDay;
     if (existingDay) {
-      day = await prisma.weeklyTrainingDay.update({
+      savedDay = await prisma.weeklyTrainingDay.update({
         where: { id: existingDay.id },
         data: {
           title: title || existingDay.title,
@@ -93,9 +108,10 @@ export async function POST(request: NextRequest) {
           workoutType: workoutType !== undefined ? workoutType : existingDay.workoutType,
         },
       });
+      console.log('[POST /api/training/days] Updated day:', savedDay.id, 'title:', savedDay.title, 'dayDate:', savedDay.dayDate);
     } else {
       const weekday = date.getDay() === 0 ? 7 : date.getDay();
-      day = await prisma.weeklyTrainingDay.create({
+      savedDay = await prisma.weeklyTrainingDay.create({
         data: {
           planId: plan.id,
           dayDate: date,
@@ -108,9 +124,10 @@ export async function POST(request: NextRequest) {
           workoutType,
         },
       });
+      console.log('[POST /api/training/days] Created day:', savedDay.id, 'title:', savedDay.title, 'dayDate:', savedDay.dayDate);
     }
 
-    return NextResponse.json(day);
+    return NextResponse.json(savedDay);
   } catch (error) {
     console.error('Training days POST error:', error);
     return NextResponse.json({ error: 'Failed to save day' }, { status: 500 });
