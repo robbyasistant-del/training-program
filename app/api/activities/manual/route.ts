@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ActivityType, Prisma } from '@prisma/client';
 
+// Helper to serialize BigInt values to strings for JSON
+function serializeActivity(activity: any) {
+  if (!activity) return activity;
+  return {
+    ...activity,
+    stravaActivityId: activity.stravaActivityId?.toString() || null,
+  };
+}
+
+function serializeActivities(activities: any[]) {
+  return activities.map(serializeActivity);
+}
+
 // POST /api/activities/manual - Create a manual activity
 export async function POST(request: NextRequest) {
   try {
@@ -58,7 +71,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(activity);
+    return NextResponse.json(serializeActivity(activity));
   } catch (error) {
     console.error('Manual activity POST error:', error);
     return NextResponse.json({ error: 'Failed to create activity' }, { status: 500 });
@@ -96,7 +109,7 @@ export async function GET(request: NextRequest) {
       orderBy: { startDate: 'desc' },
     });
 
-    return NextResponse.json(activities);
+    return NextResponse.json(serializeActivities(activities));
   } catch (error) {
     console.error('Manual activities GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch activities' }, { status: 500 });

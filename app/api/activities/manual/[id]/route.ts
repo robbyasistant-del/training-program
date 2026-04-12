@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ActivityType } from '@prisma/client';
 
+// Helper to serialize BigInt values to strings for JSON
+function serializeActivity(activity: any) {
+  if (!activity) return activity;
+  return {
+    ...activity,
+    stravaActivityId: activity.stravaActivityId?.toString() || null,
+  };
+}
+
 // PATCH /api/activities/manual/[id] - Update a manual activity
 export async function PATCH(
   request: NextRequest,
@@ -63,7 +72,7 @@ export async function PATCH(
       data: updateData,
     });
 
-    return NextResponse.json(activity);
+    return NextResponse.json(serializeActivity(activity));
   } catch (error) {
     console.error('Manual activity PATCH error:', error);
     return NextResponse.json({ error: 'Failed to update activity' }, { status: 500 });
@@ -128,7 +137,7 @@ export async function GET(
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
 
-    return NextResponse.json(activity);
+    return NextResponse.json(serializeActivity(activity));
   } catch (error) {
     console.error('Manual activity GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 });
