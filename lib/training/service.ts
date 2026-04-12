@@ -322,6 +322,22 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
     return { dayDate, dateStr, planDay, dayActivities };
   });
 
+  // Calculate weekly totals for the FIRST visible week (Week 1)
+  const firstWeekDays = visibleDays.slice(0, 7);
+  const weeklyPlannedTSS = firstWeekDays.reduce((sum, { planDay }) => sum + (planDay?.targetTSS || 0), 0);
+  const weeklyPlannedIF = firstWeekDays.reduce((sum, { planDay }) => sum + (planDay?.targetIF || 0), 0) / 7;
+  const weeklyPlannedDuration = firstWeekDays.reduce((sum, { planDay }) => sum + (planDay?.plannedDurationMin || 0), 0);
+  
+  const weeklyActualTSS = firstWeekDays.reduce((sum, { dayActivities }) => 
+    sum + dayActivities.reduce((actSum, act) => actSum + (act.tss || 0), 0), 0);
+  const weeklyActualDuration = firstWeekDays.reduce((sum, { dayActivities }) => 
+    sum + dayActivities.reduce((actSum, act) => actSum + Math.round((act.movingTime || 0) / 60), 0), 0);
+  const weeklyActualIF = firstWeekDays.reduce((sum, { dayActivities }) => {
+    const dayTotalIF = dayActivities.reduce((actSum, act) => actSum + ((act.ifValue || 0) * Math.round((act.movingTime || 0) / 60)), 0);
+    const dayTotalDuration = dayActivities.reduce((actSum, act) => actSum + Math.round((act.movingTime || 0) / 60), 0);
+    return dayTotalDuration > 0 ? sum + (dayTotalIF / dayTotalDuration) : sum;
+  }, 0) / 7;
+
   return {
     athlete: {
       id: athlete.id,
@@ -345,6 +361,13 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
       completedActivities: weekActivities.length, 
       completedDistanceKm,
       completedElevation,
+      // Weekly totals for display in header cards
+      weeklyPlannedTSS,
+      weeklyPlannedIF,
+      weeklyPlannedDuration,
+      weeklyActualTSS,
+      weeklyActualDuration,
+      weeklyActualIF,
       days: visibleDays.map(({ dayDate, dateStr, planDay, dayActivities }, index) => {
         const plannedMetrics = planDay ? {
           tss: planDay.targetTSS ?? null,
