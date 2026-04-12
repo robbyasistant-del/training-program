@@ -244,29 +244,33 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
     orderBy: { eventDate: 'asc' },
   });
 
-  // Calculate visible date range based on monthOffset (4 weeks)
-  // Use current date as base, not weekPlan.weekStart
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const baseDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  // Simple date calculation matching frontend
+  const baseDate = new Date();
+  baseDate.setDate(1); // First day of current month
+  baseDate.setMonth(baseDate.getMonth() + monthOffset);
+  baseDate.setHours(0, 0, 0, 0);
   
-  // Find the Monday of the first week of the month (or last Monday of previous month)
-  const firstDayOfMonth = baseDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  const diffToMonday = firstDayOfMonth === 0 ? -6 : 1 - firstDayOfMonth;
+  // Find Monday of that week (0=Sunday, 1=Monday)
+  const dayOfWeek = baseDate.getDay();
+  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const visibleStart = new Date(baseDate);
-  visibleStart.setDate(baseDate.getDate() + diffToMonday);
+  visibleStart.setDate(baseDate.getDate() - daysToSubtract);
   visibleStart.setHours(0, 0, 0, 0);
   
-  // End is 4 weeks later (28 days) to cover the 4 weeks displayed
+  // Load 4 weeks (28 days) + 1 week buffer for timezone safety
   const visibleEnd = new Date(visibleStart);
-  visibleEnd.setDate(visibleStart.getDate() + 28);
-  visibleEnd.setHours(0, 0, 0, 0);
+  visibleEnd.setDate(visibleStart.getDate() + 35);
+  visibleEnd.setHours(23, 59, 59, 999);
+
+  // Also load activities from 1 week before for safety
+  const loadStart = new Date(visibleStart);
+  loadStart.setDate(loadStart.getDate() - 7);
 
   const activities = await prisma.activity.findMany({
     where: {
       athleteId,
       type: { in: ['RIDE', 'VIRTUAL_RIDE'] },
-      startDate: { gte: visibleStart, lt: visibleEnd },
+      startDate: { gte: loadStart, lt: visibleEnd },
     },
     orderBy: { startDate: 'asc' },
   });
@@ -310,9 +314,15 @@ export async function getTrainingDashboardData(athleteId: string, monthOffset: n
       completedDistanceKm,
       completedElevation,
       days: weekPlan.days.map((day) => {
+        // Match activities by date string (YYYY-MM-DD) to avoid timezone issues
+        const dayDateStr = day.dayDate.slice(0, 10);
         const realActivities = activities.filter((activity) => {
-          const a = new Date(activity.startDate);
-          return a.toDateString() === new Date(day.dayDate).toDateString();
+          const actDate = new Date(activity.startDate);
+          const actYear = actDate.getFullYear();
+          const actMonth = String(actDate.getMonth() + 1).padStart(2, '0');
+          const actDay = String(actDate.getDate()).padStart(2, '0');
+          const actDateStr = `${actYear}-${actMonth}-${actDay}`;
+          return actDateStr === dayDateStr;
         });
         const plannedMetrics = {
           tss: day.targetTSS ?? null,

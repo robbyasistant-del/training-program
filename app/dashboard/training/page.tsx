@@ -206,16 +206,17 @@ export default function TrainingPage() {
   const visibleWeeks = useMemo(() => {
     if (!data) return [];
 
-    // Use current date as base, same as backend
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const baseDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    // Simple date calculation: first day of month, then back to Monday
+    const baseDate = new Date();
+    baseDate.setDate(1); // First day of current month
+    baseDate.setMonth(baseDate.getMonth() + monthOffset);
+    baseDate.setHours(0, 0, 0, 0);
     
-    // Find the Monday of the first week of the month (or last Monday of previous month)
-    const firstDayOfMonth = baseDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const diffToMonday = firstDayOfMonth === 0 ? -6 : 1 - firstDayOfMonth;
+    // Find Monday of that week (0=Sunday, 1=Monday)
+    const dayOfWeek = baseDate.getDay();
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const anchor = new Date(baseDate);
-    anchor.setDate(baseDate.getDate() + diffToMonday);
+    anchor.setDate(baseDate.getDate() - daysToSubtract);
 
     const weeks = [];
     for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
@@ -226,7 +227,11 @@ export default function TrainingPage() {
         const dayDate = new Date(weekStart);
         dayDate.setDate(weekStart.getDate() + dayIndex);
         
-        const dateStr = dayDate.toISOString().slice(0, 10);
+        // Format date as YYYY-MM-DD using LOCAL date (not UTC)
+        const year = dayDate.getFullYear();
+        const month = String(dayDate.getMonth() + 1).padStart(2, '0');
+        const day = String(dayDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
 
         const sourceDay = data.weekPlan.days.find((d) => {
           return d.dayDate.slice(0, 10) === dateStr;
@@ -236,7 +241,7 @@ export default function TrainingPage() {
           return {
             id: `empty-${dateStr}`,
             dayDate: dateStr,
-            weekday: (dayIndex + 1) % 7 || 7,
+            weekday: dayIndex + 1, // 1=Monday, 7=Sunday
             title: 'Descanso',
             description: null,
             targetIF: null,
