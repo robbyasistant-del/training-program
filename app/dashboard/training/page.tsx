@@ -905,6 +905,13 @@ export default function TrainingPage() {
                     const hasData = day.actualActivities.length > 0;
                     const hasObjective = plannedTSS > 0 || plannedIF > 0 || plannedDuration > 0;
 
+                    // Check if day is in the future - don't show result for future days
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const dayDate = new Date(day.syntheticDate);
+                    dayDate.setHours(0, 0, 0, 0);
+                    const isFuture = dayDate > today;
+
                     // Calculate completion percentage based on TSS
                     const completionPercent = plannedTSS > 0
                       ? Math.round((actualTSS / plannedTSS) * 100)
@@ -947,22 +954,28 @@ export default function TrainingPage() {
                     
                     return (
                       <div key={`res-${day.syntheticId}`} className="h-[80px]">
-                        <div className={`rounded-xl border p-3 h-full flex items-center justify-center ${
-                          resultTone === 'red'
-                            ? 'border-red-500/30 bg-red-500/10'
-                            : resultTone === 'amber'
-                              ? 'border-amber-500/30 bg-amber-500/10'
-                              : resultTone === 'orange'
-                                ? 'border-orange-500/30 bg-orange-500/10'
-                                : 'border-emerald-500/30 bg-emerald-500/10'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <ResultLabel label={resultLabel} tone={resultTone} />
-                            {hasObjective || hasData ? (
-                              <span className="text-sm font-semibold text-white">{completionPercent === Infinity ? 'INF' : `${completionPercent}%`}</span>
-                            ) : null}
+                        {isFuture ? (
+                          <div className="rounded-xl border border-dashed border-zinc-800 p-3 h-full flex items-center justify-center text-xs text-zinc-600">
+                            --
                           </div>
-                        </div>
+                        ) : (
+                          <div className={`rounded-xl border p-3 h-full flex items-center justify-center ${
+                            resultTone === 'red'
+                              ? 'border-red-500/30 bg-red-500/10'
+                              : resultTone === 'amber'
+                                ? 'border-amber-500/30 bg-amber-500/10'
+                                : resultTone === 'orange'
+                                  ? 'border-orange-500/30 bg-orange-500/10'
+                                  : 'border-emerald-500/30 bg-emerald-500/10'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <ResultLabel label={resultLabel} tone={resultTone} />
+                              {hasObjective || hasData ? (
+                                <span className="text-sm font-semibold text-white">{completionPercent === Infinity ? 'INF' : `${completionPercent}%`}</span>
+                              ) : null}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
