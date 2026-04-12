@@ -1197,10 +1197,26 @@ export default function TrainingPage() {
 }
 
 function MetricValueCard({ label, value, dark = false }: { label: string; value: string | number; dark?: boolean }) {
+  // Helper to format duration for "T" label
+  const formatDurationValue = (val: string | number): string => {
+    if (label !== 'T') return String(val);
+    
+    const numVal = typeof val === 'string' ? parseInt(val, 10) : val;
+    if (isNaN(numVal) || numVal <= 0) return '--';
+    
+    const hours = Math.floor(numVal / 60);
+    const minutes = numVal % 60;
+    
+    if (hours > 0) {
+      return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    }
+    return `${minutes}m`;
+  };
+
   // Show "--" for 0, null, undefined, or empty values (except when value is explicitly "0")
   const displayValue = value === 0 || value === '0' || value === null || value === undefined || value === '' 
     ? '--' 
-    : String(value);
+    : formatDurationValue(value);
   const labelStr = String(label);
   
   const getLabelSize = (text: string): string => {
