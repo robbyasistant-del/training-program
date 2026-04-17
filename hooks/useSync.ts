@@ -45,12 +45,12 @@ export function useSync(athleteId: string | null) {
     }
   }, [athleteId]);
 
-  // Iniciar sincronización
+  // Iniciar sincronización delta (rápida)
   const startSync = useCallback(async () => {
     if (!athleteId) return;
 
     try {
-      const response = await fetch(`/api/sync/start?athleteId=${athleteId}`, {
+      const response = await fetch(`/api/sync/start?athleteId=${athleteId}&mode=delta`, {
         method: 'POST',
       });
 
@@ -62,6 +62,27 @@ export function useSync(athleteId: string | null) {
       }
     } catch (error) {
       console.error('Error starting sync:', error);
+    }
+    return false;
+  }, [athleteId]);
+
+  // Iniciar sincronización completa (histórico)
+  const startFullSync = useCallback(async () => {
+    if (!athleteId) return;
+
+    try {
+      const response = await fetch(`/api/sync/start?athleteId=${athleteId}&mode=full`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSyncState(data.state);
+        setNeedsSync(false);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error starting full sync:', error);
     }
     return false;
   }, [athleteId]);
@@ -89,6 +110,7 @@ export function useSync(athleteId: string | null) {
     syncReason,
     isLoading,
     startSync,
+    startFullSync,
     checkSyncStatus,
   };
 }

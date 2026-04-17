@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   startFullSync, 
+  startDeltaSync,
   getSyncState, 
   needsSync 
 } from '@/lib/sync/central-sync-service';
 
 /**
  * POST /api/sync/start
- * Inicia una sincronización completa del atleta
+ * Inicia una sincronización del atleta (delta por defecto, full si se especifica)
  */
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
+    const mode = searchParams.get('mode') || 'delta'; // 'delta' | 'full'
 
     if (!athleteId) {
       return NextResponse.json(
@@ -21,17 +23,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Iniciar sincronización en background
-    startFullSync(athleteId).catch((error) => {
-      console.error('[Sync API] Error during sync:', error);
-    });
+    // Iniciar sincronización en background según el modo
+    if (mode === 'full') {
+      startFullSync(athleteId).catch((error) => {
+        console.error('[Sync API] Error during full sync:', error);
+      });
+    } else {
+      // Delta sync por defecto
+      startDeltaSync(athleteId).catch((error) => {
+        console.error('[Sync API] Error during delta sync:', error);
+      });
+    }
 
     // Devolver estado inicial inmediatamente
     const state = getSyncState(athleteId);
     
     return NextResponse.json({
       success: true,
-      message: 'Sincronización iniciada',
+      message: mode === 'full' ? 'Sincronización completa iniciada' : 'Sincronización delta iniciada',
+      mode,
       state,
     });
 

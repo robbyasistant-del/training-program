@@ -10,6 +10,7 @@ import { WeeklyActivityChart } from '@/components/dashboard/WeeklyActivityChart'
 import { WeekSelector } from '@/components/dashboard/WeekSelector';
 import { ActivitySummaryRing } from '@/components/dashboard/ActivitySummaryRing';
 import { WeeklyVolumeChart } from '@/components/charts';
+import { TrainingComplianceChart } from '@/components/dashboard/TrainingComplianceChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -386,6 +387,11 @@ export default function DashboardPage() {
                 loading={false}
               />
             )}
+          </div>
+
+          {/* Training Compliance Chart - TSS Plan vs Actual */}
+          <div className="mb-6">
+            <TrainingComplianceChart athleteId={athleteId} days={30} />
           </div>
 
           {/* Actividades Recientes y Racha */}

@@ -111,16 +111,23 @@ export async function getAthleteProfile(athleteId: string): Promise<StravaAthlet
 
 /**
  * Obtiene las actividades del atleta desde Strava
+ * @param after - Timestamp Unix opcional para filtrar actividades después de esta fecha
  */
 export async function getAthleteActivities(
   athleteId: string,
   page: number = 1,
-  perPage: number = 200
+  perPage: number = 200,
+  after?: number
 ): Promise<StravaActivity[]> {
   const params = new URLSearchParams({
     page: page.toString(),
     per_page: perPage.toString(),
   });
+
+  // Si se proporciona 'after', filtrar actividades después de esa fecha
+  if (after) {
+    params.append('after', after.toString());
+  }
 
   const response = await fetchFromStrava(`/athlete/activities?${params.toString()}`, athleteId);
   return response.json() as Promise<StravaActivity[]>;
@@ -128,13 +135,15 @@ export async function getAthleteActivities(
 
 /**
  * Obtiene una página de actividades y devuelve si hay más páginas
+ * @param after - Timestamp Unix opcional para filtrar actividades después de esta fecha
  */
 export async function fetchActivitiesPage(
   athleteId: string,
   page: number,
-  perPage: number = 200
+  perPage: number = 200,
+  after?: number
 ): Promise<{ activities: StravaActivity[]; hasMore: boolean }> {
-  const activities = await getAthleteActivities(athleteId, page, perPage);
+  const activities = await getAthleteActivities(athleteId, page, perPage, after);
   return {
     activities,
     hasMore: activities.length === perPage,
